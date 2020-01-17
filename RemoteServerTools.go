@@ -40,7 +40,7 @@ func getLocalIP() net.IP {
 	return nil
 }
 
-func postServerAddr(port int) {
+func advertiseServerAddr(port int) {
 	var jsonStr = []byte(fmt.Sprintf(`{ "ip": "%v", "port": "%v" }`, getLocalIP(), port))
 	res, err := http.Post(ServerAddr, "application/json", bytes.NewBuffer(jsonStr))
 	if err != nil {

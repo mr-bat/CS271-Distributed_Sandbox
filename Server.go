@@ -2,8 +2,9 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
+	"github.com/sirupsen/logrus"
+	"math/rand"
 	"net"
 	"os"
 	"strings"
@@ -21,17 +22,22 @@ type Client struct {
 	data   chan []byte
 }
 
+type Addr struct {
+	IP string
+	Port string
+}
+
 func (manager *ClientManager) start() {
 	for {
 		select {
 		case connection := <-manager.register:
 			manager.clients[connection] = true
-			fmt.Println("Added new connection!")
+			Logger.WithField("client", connection.socket.RemoteAddr()).Info("added new connection")
 		case connection := <-manager.unregister:
 			if _, ok := manager.clients[connection]; ok {
+				Logger.WithField("client", connection.socket.RemoteAddr()).Info("terminated connection")
 				close(connection.data)
 				delete(manager.clients, connection)
-				fmt.Println("A connection has terminated!")
 			}
 		case message := <-manager.broadcast:
 			for connection := range manager.clients {
@@ -56,7 +62,10 @@ func (manager *ClientManager) receive(client *Client) {
 			break
 		}
 		if length > 0 {
-			fmt.Println("RECEIVED: " + string(message))
+			Logger.WithFields(logrus.Fields{
+				"data" : message,
+				"client" : getAddress(),
+			}).Info("received data")
 			manager.broadcast <- message
 		}
 	}
@@ -71,7 +80,10 @@ func (client *Client) receive() {
 			break
 		}
 		if length > 0 {
-			fmt.Println("RECEIVED: " + string(message))
+			Logger.WithFields(logrus.Fields{
+				"data" : message,
+				"client" : client.socket.RemoteAddr(),
+			}).Info("received data")
 		}
 	}
 }
@@ -85,16 +97,31 @@ func (manager *ClientManager) send(client *Client) {
 				return
 			}
 			client.socket.Write(message)
+			Logger.WithFields(logrus.Fields{
+				"data" : message,
+				"client" : getAddress(),
+			}).Info("sent data")
 		}
 	}
 }
 
-func startServerMode() {
-	fmt.Println("Starting server...")
-	listener, error := net.Listen("tcp", ":12345")
-	if error != nil {
-		fmt.Println(error)
+func getAddress() string {
+	return string(getLocalIP()) + string(portNumber)
+}
+
+var portNumber int
+func startServerMode(port int) {
+	portNumber = port
+	listener, err := net.Listen("tcp", ":" + string(port))
+	if err != nil {
+		Logger.Error(err)
+		return
 	}
+
+	Logger.WithFields(logrus.Fields{
+		"ip": getLocalIP(),
+		"port": port,
+	}).Info("starting server")
 	manager := ClientManager{
 		clients:    make(map[*Client]bool),
 		broadcast:  make(chan []byte),
@@ -102,10 +129,12 @@ func startServerMode() {
 		unregister: make(chan *Client),
 	}
 	go manager.start()
+	advertiseServerAddr(port)
 	for {
-		connection, _ := listener.Accept()
-		if error != nil {
-			fmt.Println(error)
+		connection, err := listener.Accept()
+		if err != nil {
+			fmt.Println(err)
+			continue
 		}
 		client := &Client{socket: connection, data: make(chan []byte)}
 		manager.register <- client
@@ -114,12 +143,18 @@ func startServerMode() {
 	}
 }
 
-func startClientMode() {
+func startClientMode(addr Addr) {
 	fmt.Println("Starting client...")
-	connection, error := net.Dial("tcp", "localhost:12345")
+	connection, error := net.Dial("tcp", fmt.Sprintf("%v:%v", addr.IP, addr.Port))
 	if error != nil {
 		fmt.Println(error)
 	}
+
+	Logger.WithFields(logrus.Fields{
+		"server-address": addr,
+		"local-address": getAddress(),
+	}).Info("connecting to server")
+
 	client := &Client{socket: connection}
 	go client.receive()
 	for {
@@ -130,11 +165,11 @@ func startClientMode() {
 }
 
 func main() {
-	flagMode := flag.String("mode", "server", "start in client or server mode")
-	flag.Parse()
-	if strings.ToLower(*flagMode) == "server" {
-		startServerMode()
-	} else {
-		startClientMode()
+	var addrs []Addr = getClientAddrs()
+
+	startServerMode(7180 + rand.Intn(100))
+
+	for _, address := range addrs {
+		go startClientMode(address)
 	}
 }
