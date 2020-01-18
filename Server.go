@@ -2,12 +2,14 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"math/rand"
 	"net"
 	"os"
 	"strings"
+	"time"
 )
 
 type ClientManager struct {
@@ -32,10 +34,10 @@ func (manager *ClientManager) start() {
 		select {
 		case connection := <-manager.register:
 			manager.clients[connection] = true
-			Logger.WithField("client", connection.socket.RemoteAddr()).Info("added new connection")
+			Logger.WithField("client", connection.socket.LocalAddr()).Info("added new connection")
 		case connection := <-manager.unregister:
 			if _, ok := manager.clients[connection]; ok {
-				Logger.WithField("client", connection.socket.RemoteAddr()).Info("terminated connection")
+				Logger.WithField("client", connection.socket.LocalAddr()).Info("terminated connection")
 				close(connection.data)
 				delete(manager.clients, connection)
 			}
@@ -106,13 +108,13 @@ func (manager *ClientManager) send(client *Client) {
 }
 
 func getAddress() string {
-	return string(getLocalIP()) + string(portNumber)
+	return fmt.Sprintf("%v:%v", getLocalIP(), portNumber)
 }
 
 var portNumber int
 func startServerMode(port int) {
 	portNumber = port
-	listener, err := net.Listen("tcp", ":" + string(port))
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%v", port))
 	if err != nil {
 		Logger.Error(err)
 		return
@@ -143,33 +145,52 @@ func startServerMode(port int) {
 	}
 }
 
-func startClientMode(addr Addr) {
-	fmt.Println("Starting client...")
+func startClientMode(addr Addr) *Client {
 	connection, error := net.Dial("tcp", fmt.Sprintf("%v:%v", addr.IP, addr.Port))
 	if error != nil {
-		fmt.Println(error)
+		//Logger.Error(error)
+		return nil
+	}
+	if fmt.Sprintf("%v:%v", addr.IP, addr.Port) == getAddress() { // connecting to itself
+		return nil
 	}
 
+	//Logger.Info("starting client...")
 	Logger.WithFields(logrus.Fields{
-		"server-address": addr,
+		"server-address": fmt.Sprintf("%v:%v", addr.IP, addr.Port),
 		"local-address": getAddress(),
 	}).Info("connecting to server")
 
 	client := &Client{socket: connection}
 	go client.receive()
+
+	return client
+}
+
+func main() {
+	addrs := getClientAddrs()
+	var clients []*Client
+
+	for _, address := range addrs {
+		Logger.WithField("address", address).Info("trying to connect to client")
+		client := startClientMode(address)
+
+		if client != nil {
+			clients = append(clients, client)
+			fmt.Printf("server %v at address %v", len(clients), address)
+		}
+	}
+	rand.Seed(time.Now().UTC().UnixNano())
+	go startServerMode(7180 + rand.Intn(100))
+
 	for {
 		reader := bufio.NewReader(os.Stdin)
 		message, _ := reader.ReadString('\n')
 		connection.Write([]byte(strings.TrimRight(message, "\n")))
 	}
-}
+	flagMode := flag.String("initiator", "silent", "start in initiator or silent mode")
+	flag.Parse()
+	if strings.ToLower(*flagMode) == "initiator" {
 
-func main() {
-	var addrs []Addr = getClientAddrs()
-
-	startServerMode(7180 + rand.Intn(100))
-
-	for _, address := range addrs {
-		go startClientMode(address)
 	}
 }

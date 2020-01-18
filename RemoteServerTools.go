@@ -51,7 +51,7 @@ func advertiseServerAddr(port int) {
 	Logger.WithFields(logrus.Fields{
 		"ip": getLocalIP(),
 		"port": port,
-	}).Info("added addr to server")
+	}).Info("posted addr to remote-server")
 }
 
 func removeServerAddr(ip string, port int) {
@@ -71,7 +71,7 @@ func removeServerAddr(ip string, port int) {
 	Logger.WithFields(logrus.Fields{
 		"ip": ip,
 		"port": port,
-	}).Info("removed addr from server")
+	}).Info("removed addr from remote-server")
 	//fmt.Printf("removed %v:%v from server\n", ip, port)
 }
 
@@ -91,7 +91,7 @@ func getClientAddrs() []Addr {
 		var addrs []Addr
 		json.Unmarshal([]byte(string(contents)), &addrs)
 
-		Logger.WithField("addrs", addrs).Info("received addrs")
+		Logger.WithField("addrs", addrs).Info("received addrs from remote-server")
 		//fmt.Printf("received addrs: %v", addrs)
 		return addrs
 	}
