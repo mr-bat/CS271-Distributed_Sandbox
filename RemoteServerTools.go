@@ -11,7 +11,15 @@ import (
 	"os"
 )
 
-const ServerAddr = "http://178.128.139.251:8123/"
+type Addr struct {
+	IP   string
+	Port string
+}
+
+const (
+	ServerAddr = "http://178.128.139.251:8123/"
+	commandAddr = "blockchain/"
+)
 
 func getLocalIP() net.IP {
 	ifaces, err := net.Interfaces()
@@ -47,14 +55,16 @@ func advertiseServerAddr(port int) {
 		panic(err)
 	}
 	defer res.Body.Close()
-	//fmt.Printf("added %v:%v to server\n", getLocalIP(), port)
 	Logger.WithFields(logrus.Fields{
 		"ip": getLocalIP(),
 		"port": port,
 	}).Info("posted addr to remote-server")
 }
 
-func removeServerAddr(ip string, port int) {
+func removeServerAddr(addr Addr) {
+	ip := addr.IP
+	port := addr.Port
+
 	var jsonStr = []byte(fmt.Sprintf(`{ "ip": "%v", "port": "%v" }`, ip, port))
 	client := &http.Client{}
 	req, err := http.NewRequest(http.MethodPut, ServerAddr, bytes.NewBuffer(jsonStr))
@@ -72,7 +82,6 @@ func removeServerAddr(ip string, port int) {
 		"ip": ip,
 		"port": port,
 	}).Info("removed addr from remote-server")
-	//fmt.Printf("removed %v:%v from server\n", ip, port)
 }
 
 func getClientAddrs() []Addr {
@@ -96,4 +105,33 @@ func getClientAddrs() []Addr {
 		return addrs
 	}
 	return nil
+}
+
+func getUserBalance(id int) {
+	var jsonStr = []byte(fmt.Sprintf(`{ "id": "%v" }`, id))
+	res, err := http.Post(ServerAddr + commandAddr + "balance/", "application/json", bytes.NewBuffer(jsonStr))
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	fmt.Println(ioutil.ReadAll(res.Body))
+
+	Logger.WithFields(logrus.Fields{
+		"id": id,
+	}).Info("received balance")
+}
+
+func addTransaction(from, to, amount int) {
+	var jsonStr = []byte(fmt.Sprintf(`{ "from": "%v", "to": "%v", "amount": "%v" }`, from, to, amount))
+	res, err := http.Post(ServerAddr + commandAddr + "new/", "application/json", bytes.NewBuffer(jsonStr))
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+
+	Logger.WithFields(logrus.Fields{
+		"from": from,
+		"to": to,
+		"amount": amount,
+	}).Info("added transaction")
 }
