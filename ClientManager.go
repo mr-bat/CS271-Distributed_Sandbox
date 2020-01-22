@@ -25,7 +25,7 @@ func (manager *ClientManager) Start() {
 			}
 		case message := <-manager.mainChannel:
 			Logger.WithFields(logrus.Fields{
-				"data" : message,
+				"data" : string(message),
 				"client" : getAddress(),
 			}).Info("main channel received")
 			//for connection := range manager.clients {
@@ -51,7 +51,7 @@ func (manager *ClientManager) Receive(client *Client) {
 		}
 		if length > 0 {
 			Logger.WithFields(logrus.Fields{
-				"data" : message,
+				"data" : string(message),
 				"client" : getAddress(),
 			}).Info("received data")
 			manager.mainChannel <- message
