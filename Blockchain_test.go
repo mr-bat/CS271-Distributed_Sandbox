@@ -18,13 +18,13 @@ func CheckBalanceCorrectness(users []string, balances []int) bool {
 	return true
 }
 
-func TestBlockchain(t *testing.T) {
-	blocks := []Block{
-		{"1", "2", 1},
-		{"1", "3", 1},
-		{"3", "2", 1},
-	}
+var blocks = []Block{
+	{"1", "2", 1},
+	{"1", "3", 1},
+	{"3", "2", 1},
+}
 
+func TestBlockchain(t *testing.T) {
 	users := []string {
 		"1",
 		"2",
@@ -49,27 +49,22 @@ func TestBlockchain(t *testing.T) {
 }
 
 func TestBlockchainParser(t *testing.T) {
-	blocks := []Block{
-		{"1", "2", 1},
-		{"1", "3", 1},
-	}
-
-	if "1&2&1" != blocks[0].toString() {
-		t.Error("Incorrect conversion from single block to string")
+	if "1&2&1\n" != blocks[0].toString() {
+		t.Errorf("Incorrect conversion from single block to string: %s", blocks[0].toString())
 	}
 	if blocks[0] != parseBlock("1&2&1") {
 		t.Error("Incorrect conversion from string to single block")
 	}
 
-	addBlock("1", "2", 1)
-	addBlock("1", "3", 1)
-
 	convertedBlocks := rangeToString(0)
-	if convertedBlocks != blocks[0].toString() + blocks[1].toString() {
+	if convertedBlocks != blocks[0].toString() + blocks[1].toString() + blocks[2].toString() {
 		t.Error("Incorrect conversion from range of blocks to string")
+		t.Error(convertedBlocks)
+		t.Error(blocks)
 	}
 	if reflect.DeepEqual(blocks, parseRange(convertedBlocks)) {
 		t.Error("Incorrect back and forth conversion of range of blocks")
+		t.Error(blocks)
+		t.Error(parseRange(convertedBlocks))
 	}
 }
-
