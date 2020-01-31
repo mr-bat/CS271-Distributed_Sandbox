@@ -18,6 +18,21 @@ type Command struct {
 	id int
 }
 
+func handleCommand(command Command) {
+	if command.cType == UnknownCode {
+	} else if command.cType == TransactionCode {
+		if addTransaction(command.from, command.to, command.amount) {
+			fmt.Println("SUCCESS")
+		} else {
+			fmt.Println("INCORRECT")
+		}
+	} else if command.cType == BalanceCode {
+		fmt.Println("User balance:", getUserBalance(command.id))
+	} else {
+		fmt.Println("Unknown Command")
+	}
+}
+
 func main() {
 	rand.Seed(time.Now().UTC().UnixNano())
 	PortNumber = 7180 + rand.Intn(100)
@@ -26,15 +41,14 @@ func main() {
 	addrs := getClientAddrs()
 	connectToClients(addrs)
 
-	sendToClients(getAddress())
+	fmt.Println("Please enter your command: ")
 	for {
 		command := getCommand()
-		fmt.Println(command)
+		AcquireLock()
+		println("acquired")
+		handleCommand(command)
+		println("handled")
+		ReleaseLock()
+		println("released")
 	}
-
-	//flagMode := flag.String("initiator", "silent", "Start in initiator or silent mode")
-	//flag.Parse()
-	//if strings.ToLower(*flagMode) == "initiator" {
-	//
-	//}
 }

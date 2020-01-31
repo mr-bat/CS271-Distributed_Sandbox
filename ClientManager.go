@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"github.com/sirupsen/logrus"
 )
 
@@ -19,23 +20,10 @@ func (manager *ClientManager) Start() {
 			Logger.WithField("client", connection.socket.LocalAddr()).Info("added new connection")
 		case connection := <-manager.unregister:
 			if _, ok := manager.clients[connection]; ok {
-				Logger.WithField("client", connection.socket.LocalAddr()).Info("terminated connection")
+				Logger.WithField("client", connection.socket.RemoteAddr()).Info("terminated connection")
 				close(connection.data)
 				delete(manager.clients, connection)
 			}
-		case message := <-manager.mainChannel:
-			Logger.WithFields(logrus.Fields{
-				"data" : string(message),
-				"client" : getAddress(),
-			}).Info("main channel received")
-			//for connection := range manager.clients {
-			//	select {
-			//	case connection.data <- message:
-			//	default:
-			//		close(connection.data)
-			//		delete(manager.clients, connection)
-			//	}
-			//}
 		}
 	}
 }
@@ -45,16 +33,23 @@ func (manager *ClientManager) Receive(client *Client) {
 		message := make([]byte, 4096)
 		length, err := client.socket.Read(message)
 		if err != nil {
-			manager.unregister <- client
-			client.socket.Close()
+			Logger.WithFields(logrus.Fields{
+				"data" : err,
+				"client" : getAddress(),
+			}).Error("received data: error")
+
+			//manager.unregister <- client
+			//client.socket.Close()
 			break
 		}
 		if length > 0 {
+			message = bytes.Trim(message, "\x00")
 			Logger.WithFields(logrus.Fields{
 				"data" : string(message),
 				"client" : getAddress(),
 			}).Info("received data")
-			manager.mainChannel <- message
+			HandleMessage(string(message))
+			//manager.mainChannel <- message
 		}
 	}
 }

@@ -8,6 +8,10 @@ import (
 
 var clients []*Client
 
+func GetNumberOfClients() int {
+	return len(clients)
+}
+
 func connectToClients(addrs []Addr) {
 	var _clients []*Client
 
@@ -20,7 +24,7 @@ func connectToClients(addrs []Addr) {
 
 		if client != nil {
 			_clients = append(_clients, client)
-			fmt.Printf("server %v at address %v", len(_clients), address)
+			fmt.Printf("server %v at address %v\n", len(_clients), address)
 		} else {
 			removeServerAddr(address)
 		}
@@ -31,7 +35,17 @@ func connectToClients(addrs []Addr) {
 
 func sendToClients(message string) {
 	for _, client := range clients {
+		println("sending: " + message)
 		client.Send(message)
+	}
+}
+
+func sendClient(addr Addr, message string) {
+	for _, client := range clients {
+		if client.socket.RemoteAddr().String() == addr.String() {
+			println("sending: " + message)
+			client.Send(message)
+		}
 	}
 }
 

@@ -45,7 +45,7 @@ func getCommand() Command {
 		}).Info("received balance command")
 		return Command{cType: BalanceCode, id: id}
 	} else {
-		fmt.Println("Available options:\n * Transaction\n * Balance\n")
+		fmt.Println("Available options:\n * Transaction\n * Balance")
 		return Command{cType: UnknownCode}
 	}
 }
