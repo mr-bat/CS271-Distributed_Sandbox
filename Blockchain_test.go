@@ -19,9 +19,9 @@ func CheckBalanceCorrectness(users []string, balances []int) bool {
 }
 
 var blocks = []Block{
-	{"1", "2", 1},
-	{"1", "3", 1},
-	{"3", "2", 1},
+	{"1", "2", 1, 1},
+	{"1", "3", 1, 2},
+	{"3", "2", 1, 3},
 }
 
 func TestBlockchain(t *testing.T) {
@@ -29,7 +29,7 @@ func TestBlockchain(t *testing.T) {
 		"1",
 		"2",
 		"3",
-		"a",
+		"4",
 	}
 
 	expectedBalances := [][]int{
@@ -38,6 +38,7 @@ func TestBlockchain(t *testing.T) {
 		{8, 12, 10, 10},
 	}
 
+	initializeTimetable(4)
 	for i, block := range blocks {
 		addBlock(block.sender, block.receiver, block.amount)
 		if !CheckBalanceCorrectness(users, expectedBalances[i]) {
@@ -49,10 +50,10 @@ func TestBlockchain(t *testing.T) {
 }
 
 func TestBlockchainParser(t *testing.T) {
-	if "1&2&1\n" != blocks[0].toString() {
+	if "1&2&1&1\n" != blocks[0].toString() {
 		t.Errorf("Incorrect conversion from single block to string: %s", blocks[0].toString())
 	}
-	if blocks[0] != parseBlock("1&2&1") {
+	if blocks[0] != parseBlock("1&2&1&1") {
 		t.Error("Incorrect conversion from string to single block")
 	}
 

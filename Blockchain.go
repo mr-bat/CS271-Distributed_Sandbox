@@ -8,7 +8,7 @@ import (
 
 type Block struct {
 	sender, receiver string
-	amount int
+	amount, time int
 }
 
 var Blockchain []Block
@@ -25,14 +25,15 @@ func calculateBalances() map[string]int {
 }
 
 func (block *Block) toString() string {
-	return fmt.Sprintf("%s&%s&%d\n", block.sender, block.receiver, block.amount)
+	return fmt.Sprintf("%s&%s&%d&%d\n", block.sender, block.receiver, block.amount, block.time)
 }
 
 func parseBlock(block string) Block{
 	parsed := strings.Split(block, "&")
 	amount, _ := strconv.Atoi(parsed[2])
+	time, _ := strconv.Atoi(parsed[3])
 
-	return Block{sender: parsed[0], receiver: parsed[1], amount: amount}
+	return Block{sender: parsed[0], receiver: parsed[1], amount: amount, time: time}
 }
 
 func rangeToString(start int) string {
@@ -60,7 +61,7 @@ func parseRange(blocks string) []Block {
 }
 
 func addBlock(sender, receiver string, amount int) {
-	Blockchain = append(Blockchain, Block{sender: sender, receiver: receiver, amount: amount})
+	Blockchain = append(Blockchain, Block{sender: sender, receiver: receiver, amount: amount, time: incTime()})
 }
 
 func getBalance(user string) int {
