@@ -62,6 +62,28 @@ func TestTimetableUpdate(t *testing.T) {
 	}
 }
 
+func TestTimetablePicker(t *testing.T) {
+	var blocks = []Block{
+		{"1", "2", 1, 1},
+		{"2", "3", 1, 2},
+		{"3", "2", 1, 1},
+		{"3", "2", 1, 2},
+	}
+
+	var expectedBlocks = []Block{
+		{"1", "2", 1, 1},
+		{"3", "2", 1, 2},
+	}
+
+	if !reflect.DeepEqual(pickToSend(blocks, 2), expectedBlocks) {
+		t.Error("Wrong timetable block picking")
+		t.Error("\tpicked blocks:")
+		t.Error(pickToSend(blocks, 2))
+		t.Error("\texpected blocks:")
+		t.Error(expectedBlocks)
+	}
+}
+
 func TestTimetableParser(t *testing.T) {
 	initializeTimetable(2)
 	incTime()

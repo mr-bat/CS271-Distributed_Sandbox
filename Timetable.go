@@ -34,6 +34,18 @@ func updateTimetable(_timeTable [][]int, _id int) {
 	}
 }
 
+func pickToSend(blocks []Block, rId int) []Block {
+	var picked []Block
+	for _, block := range blocks {
+		bId, _ := strconv.Atoi(block.sender)
+		if block.time > timetable[rId][bId] {
+			picked = append(picked, block)
+		}
+	}
+
+	return picked
+}
+
 func convertTtToString() string {
 	result := ""
 	for i := 0; i < len(timetable); i++ {
