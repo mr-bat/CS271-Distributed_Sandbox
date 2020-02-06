@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"os"
+	"strconv"
 )
 
 func waitForDone() {
@@ -15,6 +16,16 @@ func waitForDone() {
 		reader.Scan()
 		message = reader.Text()
 	}
+}
+
+func getIdFromInput() int {
+	fmt.Println("What is your id?")
+	reader := bufio.NewScanner(os.Stdin)
+	reader.Scan()
+	message := reader.Text()
+	id, _ := strconv.Atoi(message)
+
+	return id
 }
 
 func getCommand() Command {

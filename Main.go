@@ -41,6 +41,10 @@ func main() {
 	addrs := getClientAddrs()
 	connectToClients(addrs)
 
+	id := getIdFromInput()
+	setId(id)
+	Logger.WithField("id", getId()).Info("set id")
+
 	fmt.Println("Please enter your command: ")
 	for {
 		command := getCommand()
