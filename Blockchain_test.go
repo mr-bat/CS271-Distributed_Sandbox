@@ -63,9 +63,11 @@ func TestBlockchainParser(t *testing.T) {
 		t.Error(convertedBlocks)
 		t.Error(blocks)
 	}
-	if reflect.DeepEqual(blocks, parseRange(convertedBlocks)) {
+	if !reflect.DeepEqual(blocks, parseRange(convertedBlocks)) {
 		t.Error("Incorrect back and forth conversion of range of blocks")
+		t.Error("\tblocks:")
 		t.Error(blocks)
+		t.Error("\tparsed blocks:")
 		t.Error(parseRange(convertedBlocks))
 	}
 }

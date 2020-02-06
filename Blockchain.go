@@ -48,8 +48,7 @@ func rangeToString(start int) string {
 
 func parseRange(blocks string) []Block {
 	parsedBlocks := strings.Split(blocks, "\n")
-	println(parsedBlocks)
-	createdBlocks := make([]Block, 1000)
+	var createdBlocks []Block
 
 	for _, block := range parsedBlocks {
 		if len(block) > 0 {
