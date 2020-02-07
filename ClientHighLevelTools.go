@@ -112,7 +112,7 @@ func updateSelf(_timetable [][]int, blocks []Block, informerId int) {
 		"informer-id": informerId,
 	}).Info("updating self")
 
-	updateTimetable(_timetable, informerId)
+	updateTimetable(_timetable, informerId, getId())
 	addBlockRange(newBlocks)
 
 	Logger.WithFields(logrus.Fields{
@@ -163,4 +163,6 @@ func informClient(id int) {
 
 	sendClient(id, fmt.Sprintf("DATA@%s@%s@%d", convertTtToString(), rangeToString(toBeSent), getId()))
 	fmt.Printf("MESSAGE SENT TO %d\n", id)
+
+	//updateTimetable(timetable, getId(), id)
 }

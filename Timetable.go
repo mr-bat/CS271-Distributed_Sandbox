@@ -28,17 +28,17 @@ func initializeTimetable(length int) {
 	}
 }
 
-func updateTimetable(_timeTable [][]int, _id int) {
+func updateTimetable(_timeTable [][]int, updaterId, updateeId int) {
 	Logger.WithFields(logrus.Fields{
 		"timetable" : timetable,
-		"id": _id,
+		"id": updaterId,
 	}).Info("updating timetable")
 
 	for i := 0; i < len(timetable); i++ {
 		for j := 0; j < len(timetable); j++ {
 			timetable[i][j] = ix.Max(timetable[i][j], _timeTable[i][j])
 		}
-		timetable[getId()][i] = ix.Max(timetable[getId()][i], _timeTable[_id][i])
+		timetable[updateeId][i] = ix.Max(timetable[updateeId][i], _timeTable[updaterId][i])
 	}
 
 	Logger.WithFields(logrus.Fields{

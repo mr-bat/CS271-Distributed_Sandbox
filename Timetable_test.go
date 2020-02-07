@@ -45,7 +45,7 @@ func TestTimetableUpdate(t *testing.T) {
 	_table[__id][__id] = 1
 
 
-	updateTimetable(_table, _id)
+	updateTimetable(_table, _id, getId())
 
 	_result := [testLength][testLength]int{
 		{0, 0, 0, 0},
