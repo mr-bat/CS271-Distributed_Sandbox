@@ -75,10 +75,10 @@ func TestTimetablePicker(t *testing.T) {
 		{"3", "2", 1, 2},
 	}
 
-	if !reflect.DeepEqual(pickToSend(blocks, 2), expectedBlocks) {
+	if !reflect.DeepEqual(pickNewBlocks(blocks, 2), expectedBlocks) {
 		t.Error("Wrong timetable block picking")
 		t.Error("\tpicked blocks:")
-		t.Error(pickToSend(blocks, 2))
+		t.Error(pickNewBlocks(blocks, 2))
 		t.Error("\texpected blocks:")
 		t.Error(expectedBlocks)
 	}

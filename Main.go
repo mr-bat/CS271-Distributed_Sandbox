@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"strconv"
 	"time"
 )
 
@@ -10,24 +11,23 @@ const (
 	UnknownCode = iota
 	TransactionCode = iota
 	BalanceCode = iota
+	InformCode = iota
 )
 
 type Command struct {
 	cType int
-	from, to, amount int
-	id int
+	from, to string
+	amount, id int
 }
 
 func handleCommand(command Command) {
 	if command.cType == UnknownCode {
 	} else if command.cType == TransactionCode {
-		if addTransaction(command.from, command.to, command.amount) {
-			fmt.Println("SUCCESS")
-		} else {
-			fmt.Println("INCORRECT")
-		}
+		addTransaction(command.from, command.to, command.amount)
 	} else if command.cType == BalanceCode {
-		fmt.Println("User balance:", getUserBalance(command.id))
+		fmt.Println("User balance:", getBalance(strconv.Itoa(command.id)))
+	} else if command.cType == InformCode {
+		informClient(command.id)
 	} else {
 		fmt.Println("Unknown Command")
 	}
@@ -40,19 +40,12 @@ func main() {
 
 	addrs := getClientAddrs()
 	connectToClients(addrs)
+	initializeTimetable(GetNumberOfClients() + 2)
+	advertiseId()
 
-	id := getIdFromInput()
-	setId(id)
-	Logger.WithField("id", getId()).Info("set id")
-
-	fmt.Println("Please enter your command: ")
 	for {
+		fmt.Println("Please enter your command: ")
 		command := getCommand()
-		AcquireLock()
-		println("acquired")
 		handleCommand(command)
-		println("handled")
-		ReleaseLock()
-		println("released")
 	}
 }

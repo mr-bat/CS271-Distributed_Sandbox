@@ -11,12 +11,12 @@ type Block struct {
 	amount, time int
 }
 
-var Blockchain []Block
+var blockchain []Block
 
 func calculateBalances() map[string]int {
 	balance := make(map[string]int)
 
-	for _, block := range Blockchain {
+	for _, block := range blockchain {
 		balance[block.receiver] += block.amount
 		balance[block.sender] -= block.amount
 	}
@@ -36,11 +36,11 @@ func parseBlock(block string) Block{
 	return Block{sender: parsed[0], receiver: parsed[1], amount: amount, time: time}
 }
 
-func rangeToString(start int) string {
+func rangeToString(blocks []Block) string {
 	result := ""
 
-	for i := start; i < len(Blockchain); i++ {
-		result += Blockchain[i].toString()
+	for _, block := range blocks {
+		result += block.toString()
 	}
 
 	return result
@@ -60,7 +60,11 @@ func parseRange(blocks string) []Block {
 }
 
 func addBlock(sender, receiver string, amount int) {
-	Blockchain = append(Blockchain, Block{sender: sender, receiver: receiver, amount: amount, time: incTime()})
+	blockchain = append(blockchain, Block{sender: sender, receiver: receiver, amount: amount, time: incTime()})
+}
+
+func addBlockRange(blocks []Block) {
+	blockchain = append(blockchain, blocks...)
 }
 
 func getBalance(user string) int {

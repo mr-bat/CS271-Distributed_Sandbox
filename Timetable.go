@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/adam-lavrik/go-imath/ix"
+	"github.com/sirupsen/logrus"
 	"strconv"
 	"strings"
 )
@@ -14,10 +15,12 @@ func getId() int { return id }
 func getTime() int { return timetable[getId()][getId()]}
 func incTime() int {
 	timetable[getId()][getId()] += 1
+	Logger.WithField("clock", timetable[getId()][getId()]).Info("updated clock")
 	return timetable[getId()][getId()]
 }
 
 func initializeTimetable(length int) {
+	Logger.WithField("length", length).Info("initializing timetable")
 	timetable = make([][]int, length)
 	rows := make([]int, length * length)
 	for i := 0; i < length; i++ {
@@ -26,23 +29,40 @@ func initializeTimetable(length int) {
 }
 
 func updateTimetable(_timeTable [][]int, _id int) {
+	Logger.WithFields(logrus.Fields{
+		"timetable" : timetable,
+		"id": _id,
+	}).Info("updating timetable")
+
 	for i := 0; i < len(timetable); i++ {
 		for j := 0; j < len(timetable); j++ {
 			timetable[i][j] = ix.Max(timetable[i][j], _timeTable[i][j])
 		}
-		timetable[getId()][i] = ix.Max(timetable[getId()][i], timetable[_id][i])
+		timetable[getId()][i] = ix.Max(timetable[getId()][i], _timeTable[_id][i])
 	}
+
+	Logger.WithFields(logrus.Fields{
+		"timetable" : timetable,
+	}).Info("updated timetable")
 }
 
-func pickToSend(blocks []Block, rId int) []Block {
+func pickNewBlocks(blocks []Block, rId int) []Block {
+	Logger.WithFields(logrus.Fields{
+		"receiver-id": rId,
+	}).Info("picking blocks")
+
 	var picked []Block
 	for _, block := range blocks {
+		Logger.WithFields(logrus.Fields{
+			"block": block,
+		}).Info("analyzing block")
+
 		bId, _ := strconv.Atoi(block.sender)
 		if block.time > timetable[rId][bId] {
 			picked = append(picked, block)
+			println("picked")
 		}
 	}
-
 	return picked
 }
 

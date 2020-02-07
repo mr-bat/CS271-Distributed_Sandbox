@@ -34,18 +34,17 @@ func getCommand() Command {
 	reader.Scan()
 	message := reader.Text()
 	if message == "Transaction" {
-		var from, to, amount int
-		fmt.Println("Enter: from, to, amount")
-		fmt.Scan(&from)
+		var to, amount int
+		fmt.Println("Enter: to, amount")
 		fmt.Scan(&to)
 		fmt.Scan(&amount)
 
 		Logger.WithFields(logrus.Fields{
-			"from": from,
+			"from": getId(),
 			"to": to,
 			"amount": amount,
 		}).Info("received transaction command")
-		return Command{cType: TransactionCode, from: from, to: to, amount: amount}
+		return Command{cType: TransactionCode, from: strconv.Itoa(getId()), to: strconv.Itoa(to), amount: amount}
 	} else if message == "Balance" {
 		var id int
 		fmt.Println("Enter: id")
@@ -55,8 +54,13 @@ func getCommand() Command {
 			"id": id,
 		}).Info("received balance command")
 		return Command{cType: BalanceCode, id: id}
+	} else if message == "Inform" {
+		var id int
+		fmt.Println("Enter: id")
+		fmt.Scan(&id)
+		return Command{cType:InformCode, id: id}
 	} else {
-		fmt.Println("Available options:\n * Transaction\n * Balance")
+		fmt.Println("Available options:\n * Transaction\n * Balance\n * Inform")
 		return Command{cType: UnknownCode}
 	}
 }

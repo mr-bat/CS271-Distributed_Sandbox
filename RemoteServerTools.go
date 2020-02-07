@@ -22,7 +22,6 @@ func (this *Addr) String() string{
 
 const (
 	ServerAddr = "http://178.128.139.251:8123/"
-	commandAddr = "blockchain/"
 )
 
 func getLocalIP() net.IP {
@@ -109,42 +108,4 @@ func getClientAddrs() []Addr {
 		return addrs
 	}
 	return nil
-}
-
-func getUserBalance(id int) string {
-	var jsonStr = []byte(fmt.Sprintf(`{ "id": "%v" }`, id))
-	res, err := http.Post(ServerAddr + commandAddr + "balance/", "application/json", bytes.NewBuffer(jsonStr))
-	if err != nil {
-		panic(err)
-	}
-	defer res.Body.Close()
-	body, _ := ioutil.ReadAll(res.Body)
-	balance := struct {
-		Id int
-		Amount string
-	}{}
-	json.Unmarshal([]byte(body), &balance)
-
-	Logger.WithFields(logrus.Fields{
-		"id": id,
-		"balance": balance,
-	}).Info("received balance")
-	return balance.Amount
-}
-
-func addTransaction(from, to, amount int) bool {
-	var jsonStr = []byte(fmt.Sprintf(`{ "from": "%v", "to": "%v", "amount": "%v" }`, from, to, amount))
-	res, err := http.Post(ServerAddr + commandAddr + "new/", "application/json", bytes.NewBuffer(jsonStr))
-	if err != nil {
-		panic(err)
-	}
-	defer res.Body.Close()
-	println(res.Status)
-
-	Logger.WithFields(logrus.Fields{
-		"from": from,
-		"to": to,
-		"amount": amount,
-	}).Info("added transaction")
-	return res.StatusCode == 200
 }

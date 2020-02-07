@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"net"
+	"strconv"
+	"strings"
 )
 
 var clients []*Client
@@ -40,9 +42,9 @@ func sendToClients(message string) {
 	}
 }
 
-func sendClient(addr Addr, message string) {
+func sendClient(id int, message string) {
 	for _, client := range clients {
-		if client.socket.RemoteAddr().String() == addr.String() {
+		if client.id == id {
 			println("sending: " + message)
 			client.Send(message)
 		}
@@ -66,4 +68,99 @@ func startClientMode(addr Addr) *Client {
 	go client.Receive()
 
 	return client
+}
+
+func handleReceivedMessage(message string) {
+	parsed := strings.Split(message, "@")
+	command := parsed[0]
+
+	if command == "ID" {
+		id, _ := strconv.Atoi(parsed[1])
+		addClientId(id, parsed[2])
+	} else if command == "DATA" {
+		timetable := parseTt(parsed[1])
+		blocks := parseRange(parsed[2])
+		id, _ := strconv.Atoi(parsed[3])
+		updateSelf(timetable, blocks, id)
+	}
+}
+
+func addClientId(id int, address string) {
+	Logger.WithFields(logrus.Fields{
+		"id": id,
+		"client-address": address,
+	}).Info("identifying client")
+
+	for _, _client := range clients {
+		if _client.socket.RemoteAddr().String() == address {
+			_client.id = id
+			Logger.WithFields(logrus.Fields{
+				"id": id,
+				"client": address,
+			}).Info("identified client")
+		}
+	}
+}
+
+func updateSelf(_timetable [][]int, blocks []Block, informerId int) {
+	newBlocks := pickNewBlocks(blocks, getId())
+	Logger.WithFields(logrus.Fields{
+		"received-timetable": _timetable,
+		"received-blocks": blocks,
+		"blockchain": blockchain,
+		"filtered-blocks": newBlocks,
+		"informer-id": informerId,
+	}).Info("updating self")
+
+	updateTimetable(_timetable, informerId)
+	addBlockRange(newBlocks)
+
+	Logger.WithFields(logrus.Fields{
+		"updated-timetable": timetable,
+		"updated-blockchain": blockchain,
+	}).Info("updated self")
+}
+
+func addTransaction(from, to string, amount int) {
+	initialBalance := getBalance(from)
+	Logger.WithFields(logrus.Fields{
+		"from": from,
+		"from's-initial-balance": getBalance(from),
+		"to": to,
+		"amount": amount,
+	}).Info("current transaction")
+
+	if  initialBalance >= amount {
+		addBlock(from, to, amount)
+		fmt.Println("SUCCESS")
+	} else {
+		fmt.Println("INCORRECT")
+	}
+	Logger.WithFields(logrus.Fields{
+		"timetable" : timetable,
+		"from's-new-balance": getBalance(from),
+	}).Info("updated timetable")
+}
+
+func advertiseId() {
+	id := getIdFromInput()
+	setId(id)
+	Logger.WithField("id", getId()).Info("set id")
+	sendToClients(fmt.Sprintf("ID@%d@%s", getId(), getAddress()))
+}
+
+func informClient(id int) {
+	Logger.WithFields(logrus.Fields{
+		"id": id,
+		"timetable": timetable,
+	}).Info("informing client")
+
+	toBeSent := pickNewBlocks(blockchain, id)
+	Logger.WithFields(logrus.Fields{
+		"toBeSent": toBeSent,
+	}).Info("picked blocks")
+	incTime()
+
+	sendClient(id, fmt.Sprintf("DATA@%s@%s@%d", convertTtToString(), rangeToString(toBeSent), getId()))
+	fmt.Printf("MESSAGE SENT TO %d\n", id)
 }

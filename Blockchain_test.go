@@ -57,7 +57,7 @@ func TestBlockchainParser(t *testing.T) {
 		t.Error("Incorrect conversion from string to single block")
 	}
 
-	convertedBlocks := rangeToString(0)
+	convertedBlocks := rangeToString(blockchain[:])
 	if convertedBlocks != blocks[0].toString() + blocks[1].toString() + blocks[2].toString() {
 		t.Error("Incorrect conversion from range of blocks to string")
 		t.Error(convertedBlocks)

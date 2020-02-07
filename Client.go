@@ -10,6 +10,7 @@ import (
 type Client struct {
 	socket net.Conn
 	data   chan []byte
+	id int
 }
 
 func (client *Client) Receive() {
@@ -30,6 +31,6 @@ func (client *Client) Receive() {
 }
 
 func (client *Client) Send(message string) {
-	time.Sleep(5 * time.Second)
+	time.Sleep(2 * time.Second)
 	client.socket.Write([]byte(strings.TrimRight(message, "\n")))
 }
