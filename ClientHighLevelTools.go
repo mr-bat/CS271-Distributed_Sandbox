@@ -44,6 +44,7 @@ func sendToClients(message string) {
 	}
 }
 
+//nolint
 func sendClient(id int, message string) {
 	for _, client := range clients {
 		if client.id == id {
@@ -153,22 +154,4 @@ func advertiseId() {
 	setId(id)
 	Logger.WithField("id", getId()).Info("set id")
 	sendToClients(fmt.Sprintf("ID@%d@%s", getId(), getAddress()))
-}
-
-func informClient(id int) {
-	Logger.WithFields(logrus.Fields{
-		"id":        id,
-		"timetable": timetable,
-	}).Info("informing client")
-
-	toBeSent := pickNewBlocks(getCurrBlockChain(), id)
-	Logger.WithFields(logrus.Fields{
-		"toBeSent": toBeSent,
-	}).Info("picked blocks")
-	incTime()
-
-	sendClient(id, fmt.Sprintf("DATA@%s@%s@%d", convertTtToString(), rangeToString(toBeSent), getId()))
-	fmt.Printf("MESSAGE SENT TO %d\n", id)
-
-	//updateTimetable(timetable, getId(), id)
 }

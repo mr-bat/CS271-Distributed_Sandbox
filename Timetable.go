@@ -12,11 +12,6 @@ var timetable [][]int
 
 func setId(_id int) { id = _id }
 func getId() int { return id }
-func incTime() int {
-	timetable[getId()][getId()] += 1
-	Logger.WithField("clock", timetable[getId()][getId()]).Info("updated clock")
-	return timetable[getId()][getId()]
-}
 
 func initializeTimetable(length int) {
 	Logger.WithField("length", length).Info("initializing timetable")
@@ -63,23 +58,6 @@ func pickNewBlocks(blocks []Block, rId int) []Block {
 		}
 	}
 	return picked
-}
-
-func convertTtToString() string {
-	result := ""
-	for i := 0; i < len(timetable); i++ {
-		for j := 0; j < len(timetable); j++ {
-			if j > 0 {
-				result += "&"
-			}
-			result += strconv.Itoa(timetable[i][j])
-		}
-		if i + 1 < len(timetable) {
-			result += "\n"
-		}
-	}
-
-	return result
 }
 
 func parseTt(convertedTt string) [][]int {
