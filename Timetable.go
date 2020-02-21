@@ -12,7 +12,6 @@ var timetable [][]int
 
 func setId(_id int) { id = _id }
 func getId() int { return id }
-func getTime() int { return timetable[getId()][getId()]}
 func incTime() int {
 	timetable[getId()][getId()] += 1
 	Logger.WithField("clock", timetable[getId()][getId()]).Info("updated clock")

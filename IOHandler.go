@@ -54,13 +54,8 @@ func getCommand() Command {
 			"id": id,
 		}).Info("received balance command")
 		return Command{cType: BalanceCode, id: id}
-	} else if message == "Inform" {
-		var id int
-		fmt.Println("Enter: id")
-		fmt.Scan(&id)
-		return Command{cType:InformCode, id: id}
 	} else {
-		fmt.Println("Available options:\n * Transaction\n * Balance\n * Inform")
+		fmt.Println("Available options:\n * Transaction\n * Balance")
 		return Command{cType: UnknownCode}
 	}
 }

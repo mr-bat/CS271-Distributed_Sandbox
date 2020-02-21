@@ -42,7 +42,7 @@ func getLocalIP() net.IP {
 			case *net.IPAddr:
 				ip = v.IP
 			}
-			if ip != nil && ip.To4() != nil && ip.IsLoopback() == false {
+			if ip != nil && ip.To4() != nil && !ip.IsLoopback() {
 				return ip
 			}
 		}
@@ -76,10 +76,10 @@ func removeServerAddr(addr Addr) {
 		panic(err)
 	}
 	res, err := client.Do(req)
-	defer res.Body.Close()
 	if err != nil {
 		panic(err)
 	}
+	defer res.Body.Close()
 
 	Logger.WithFields(logrus.Fields{
 		"ip": ip,
@@ -101,7 +101,7 @@ func getClientAddrs() []Addr {
 		}
 
 		var addrs []Addr
-		json.Unmarshal([]byte(string(contents)), &addrs)
+		_ = json.Unmarshal([]byte(string(contents)), &addrs)
 
 		Logger.WithField("addrs", addrs).Info("received addrs from remote-server")
 		//fmt.Printf("received addrs: %v", addrs)

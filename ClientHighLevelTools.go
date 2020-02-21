@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -53,7 +54,7 @@ func sendClient(id int, message string) {
 }
 
 func startClientMode(addr Addr) *Client {
-	connection, error := net.Dial("tcp", fmt.Sprintf("%v:%v", addr.IP, addr.Port))
+	connection, error := net.DialTimeout("tcp", fmt.Sprintf("%v:%v", addr.IP, addr.Port), 2 * time.Second)
 	if error != nil {
 		//Logger.Error(error)
 		return nil
@@ -131,11 +132,15 @@ func addTransaction(from, to string, amount int) {
 		"amount":                 amount,
 	}).Info("current transaction")
 
-	if initialBalance >= amount {
+	if initialBalance < amount {
+		beginSync()
+	}
+
+	if initialBalance < amount {
+		fmt.Println("INCORRECT")
+	} else {
 		addBlock(from, to, amount)
 		fmt.Println("SUCCESS")
-	} else {
-		fmt.Println("INCORRECT")
 	}
 	Logger.WithFields(logrus.Fields{
 		"timetable":          timetable,

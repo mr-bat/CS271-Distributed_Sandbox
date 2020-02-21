@@ -11,7 +11,6 @@ const (
 	UnknownCode = iota
 	TransactionCode = iota
 	BalanceCode = iota
-	InformCode = iota
 )
 
 type Command struct {
@@ -26,8 +25,6 @@ func handleCommand(command Command) {
 		addTransaction(command.from, command.to, command.amount)
 	} else if command.cType == BalanceCode {
 		fmt.Println("User balance:", getBalance(strconv.Itoa(command.id)))
-	} else if command.cType == InformCode {
-		informClient(command.id)
 	} else {
 		fmt.Println("Unknown Command")
 	}
