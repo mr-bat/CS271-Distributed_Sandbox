@@ -156,7 +156,7 @@ func informClient(id int) {
 		"timetable": timetable,
 	}).Info("informing client")
 
-	toBeSent := pickNewBlocks(blockchain, id)
+	toBeSent := pickNewBlocks(getCurrBlockChain(), id)
 	Logger.WithFields(logrus.Fields{
 		"toBeSent": toBeSent,
 	}).Info("picked blocks")

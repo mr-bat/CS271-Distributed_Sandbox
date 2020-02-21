@@ -58,7 +58,7 @@ func pickNewBlocks(blocks []Block, rId int) []Block {
 		}).Info("analyzing block")
 
 		bId, _ := strconv.Atoi(block.sender)
-		if block.time > timetable[rId][bId] {
+		if 0 > timetable[rId][bId] {
 			picked = append(picked, block)
 			println("picked")
 		}
