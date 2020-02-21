@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"net"
 	"strconv"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 var clients []*Client
@@ -32,7 +33,7 @@ func connectToClients(addrs []Addr) {
 		}
 	}
 
-	clients =  _clients
+	clients = _clients
 }
 
 func sendToClients(message string) {
@@ -61,7 +62,7 @@ func startClientMode(addr Addr) *Client {
 	//Logger.Info("starting client...")
 	Logger.WithFields(logrus.Fields{
 		"server-address": fmt.Sprintf("%v:%v", addr.IP, addr.Port),
-		"local-address": getAddress(),
+		"local-address":  getAddress(),
 	}).Info("connecting to server")
 
 	client := &Client{socket: connection}
@@ -87,7 +88,7 @@ func handleReceivedMessage(message string) {
 
 func addClientId(id int, address string) {
 	Logger.WithFields(logrus.Fields{
-		"id": id,
+		"id":             id,
 		"client-address": address,
 	}).Info("identifying client")
 
@@ -95,7 +96,7 @@ func addClientId(id int, address string) {
 		if _client.socket.RemoteAddr().String() == address {
 			_client.id = id
 			Logger.WithFields(logrus.Fields{
-				"id": id,
+				"id":     id,
 				"client": address,
 			}).Info("identified client")
 		}
@@ -106,17 +107,17 @@ func updateSelf(_timetable [][]int, blocks []Block, informerId int) {
 	newBlocks := pickNewBlocks(blocks, getId())
 	Logger.WithFields(logrus.Fields{
 		"received-timetable": _timetable,
-		"received-blocks": blocks,
-		"blockchain": blockchain,
-		"filtered-blocks": newBlocks,
-		"informer-id": informerId,
+		"received-blocks":    blocks,
+		"blockchain":         blockchain,
+		"filtered-blocks":    newBlocks,
+		"informer-id":        informerId,
 	}).Info("updating self")
 
 	updateTimetable(_timetable, informerId, getId())
-	addBlockRange(newBlocks)
+	addBlockchain(newBlocks)
 
 	Logger.WithFields(logrus.Fields{
-		"updated-timetable": timetable,
+		"updated-timetable":  timetable,
 		"updated-blockchain": blockchain,
 	}).Info("updated self")
 }
@@ -124,20 +125,20 @@ func updateSelf(_timetable [][]int, blocks []Block, informerId int) {
 func addTransaction(from, to string, amount int) {
 	initialBalance := getBalance(from)
 	Logger.WithFields(logrus.Fields{
-		"from": from,
+		"from":                   from,
 		"from's-initial-balance": getBalance(from),
-		"to": to,
-		"amount": amount,
+		"to":                     to,
+		"amount":                 amount,
 	}).Info("current transaction")
 
-	if  initialBalance >= amount {
+	if initialBalance >= amount {
 		addBlock(from, to, amount)
 		fmt.Println("SUCCESS")
 	} else {
 		fmt.Println("INCORRECT")
 	}
 	Logger.WithFields(logrus.Fields{
-		"timetable" : timetable,
+		"timetable":          timetable,
 		"from's-new-balance": getBalance(from),
 	}).Info("updated timetable")
 }
@@ -151,7 +152,7 @@ func advertiseId() {
 
 func informClient(id int) {
 	Logger.WithFields(logrus.Fields{
-		"id": id,
+		"id":        id,
 		"timetable": timetable,
 	}).Info("informing client")
 
