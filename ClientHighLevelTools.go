@@ -55,7 +55,7 @@ func sendClient(id int, message string) {
 }
 
 func startClientMode(addr Addr) *Client {
-	connection, error := net.DialTimeout("tcp", fmt.Sprintf("%v:%v", addr.IP, addr.Port), 2 * time.Second)
+	connection, error := net.DialTimeout("tcp", fmt.Sprintf("%v:%v", addr.IP, addr.Port), 2*time.Second)
 	if error != nil {
 		//Logger.Error(error)
 		return nil
@@ -80,11 +80,11 @@ func handleReceivedMessage(message string) {
 	if command == "ID" {
 		id, _ := strconv.Atoi(parsed[1])
 		addClientId(id, parsed[2])
-	} else if command == "DATA" {
-		timetable := parseTt(parsed[1])
-		blocks := parseRange(parsed[2])
-		id, _ := strconv.Atoi(parsed[3])
-		updateSelf(timetable, blocks, id)
+	} else if command == "PREPARE" {
+	} else if command == "ACK" {
+	} else if command == "ACCEPT" {
+	} else if command == "ACCEPTED" {
+	} else if command == "COMMIT" {
 	}
 }
 
