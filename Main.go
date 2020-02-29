@@ -8,14 +8,14 @@ import (
 )
 
 const (
-	UnknownCode = iota
+	UnknownCode     = iota
 	TransactionCode = iota
-	BalanceCode = iota
+	BalanceCode     = iota
 )
 
 type Command struct {
-	cType int
-	from, to string
+	cType      int
+	from, to   string
 	amount, id int
 }
 
@@ -39,6 +39,7 @@ func main() {
 	connectToClients(addrs)
 	initializeTimetable(GetNumberOfClients() + 2)
 	advertiseId()
+	lastBallot = BallotNum{0, getId()}
 
 	for {
 		fmt.Println("Please enter your command: ")

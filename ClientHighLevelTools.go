@@ -16,6 +16,10 @@ func GetNumberOfClients() int {
 	return len(clients)
 }
 
+func GetQuorumSize() int {
+	return (len(clients) / 2) + 1
+}
+
 func connectToClients(addrs []Addr) {
 	var _clients []*Client
 
@@ -81,6 +85,14 @@ func handleReceivedMessage(message string) {
 		id, _ := strconv.Atoi(parsed[1])
 		addClientId(id, parsed[2])
 	} else if command == "PREPARE" {
+		var receivedBallot BallotNum
+		receivedBallot.num, _ = strconv.Atoi(parsed[1])
+		receivedBallot.id, _ = strconv.Atoi(parsed[2])
+		if isGreaterBallot(receivedBallot) {
+			lastBallot = receivedBallot
+			ackMessage := "ACK@" + string(receivedBallot.num) + "@" + string(receivedBallot.id)
+			sendClient(receivedBallot.id, ackMessage)
+		}
 	} else if command == "ACK" {
 	} else if command == "ACCEPT" {
 	} else if command == "ACCEPTED" {
