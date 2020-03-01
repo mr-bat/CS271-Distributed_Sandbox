@@ -5,6 +5,11 @@ import "time"
 const timeout int = 2
 
 var ackCount int
+var acceptedCount int
+
+var noReturn bool = false
+
+var receivedBlocks []Block
 
 type BallotNum struct {
 	num int
@@ -29,6 +34,8 @@ func getQuorumSize() int {
 
 func beginSync() {
 	ackCount = 0
+	acceptedCount = 0
+	receivedBlocks = nil
 	var myBallot BallotNum = BallotNum{lastBallot.num + 1, getId()}
 	lastBallot = myBallot
 	prepareMessage := getPrepareMessage(myBallot)
@@ -42,6 +49,19 @@ func beginSync() {
 	}
 	acceptMessage := getAcceptMessage(myBallot)
 	sendToClients(acceptMessage)
+	time.Sleep(time.Duration(timeout) * time.Second)
+	if myBallot != lastBallot {
+		return
+	}
+	if (acceptedCount + 1) < getQuorumSize() {
+		return
+	}
+	noReturn = true
+	newBlock := append(getCurrBlockChain(), receivedBlocks...)
+	addBlockchain(newBlock)
+	commitMessage := getCommitMessage(myBallot.num, newBlock)
+	sendToClients(commitMessage)
+	noReturn = false
 }
 
 func getPrepareMessage(ballot BallotNum) string {
@@ -49,5 +69,12 @@ func getPrepareMessage(ballot BallotNum) string {
 }
 
 func getAcceptMessage(ballot BallotNum) string {
-	return "ACCEPT@" + string(ballot.num) + "@" + rangeToString(getCurrBlockChain())
+	return "ACCEPT@" + string(ballot.num) + "@" + string(ballot.id) + "@" + rangeToString(getCurrBlockChain())
+}
+
+func getAcceptedMessage(sequenceNum int) string {
+	return "ACCEPTED@" + string(sequenceNum) + "@" + rangeToString(getCurrBlockChain())
+}
+func getCommitMessage(sequenceNum int, blocks []Block) string {
+	return "COMMIT@" + string(sequenceNum) + "@" + rangeToString(blocks)
 }
