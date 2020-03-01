@@ -16,10 +16,6 @@ func GetNumberOfClients() int {
 	return len(clients)
 }
 
-func GetQuorumSize() int {
-	return (len(clients) / 2) + 1
-}
-
 func connectToClients(addrs []Addr) {
 	var _clients []*Client
 
@@ -94,7 +90,9 @@ func handleReceivedMessage(message string) {
 			sendClient(receivedBallot.id, ackMessage)
 		}
 	} else if command == "ACK" {
+		ackCount++
 	} else if command == "ACCEPT" {
+
 	} else if command == "ACCEPTED" {
 	} else if command == "COMMIT" {
 	}
