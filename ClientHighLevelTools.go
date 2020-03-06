@@ -16,10 +16,6 @@ func GetNumberOfClients() int {
 	return len(clients)
 }
 
-func GetQuorumSize() int {
-	return (len(clients) / 2) + 1
-}
-
 func connectToClients(addrs []Addr) {
 	var _clients []*Client
 
@@ -85,6 +81,9 @@ func handleReceivedMessage(message string) {
 		id, _ := strconv.Atoi(parsed[1])
 		addClientId(id, parsed[2])
 	} else if command == "PREPARE" {
+		if noReturn {
+			return
+		}
 		var receivedBallot BallotNum
 		receivedBallot.num, _ = strconv.Atoi(parsed[1])
 		receivedBallot.id, _ = strconv.Atoi(parsed[2])
@@ -94,9 +93,25 @@ func handleReceivedMessage(message string) {
 			sendClient(receivedBallot.id, ackMessage)
 		}
 	} else if command == "ACK" {
+		ackCount++
 	} else if command == "ACCEPT" {
+		var acceptBallot BallotNum
+		acceptBallot.num, _ = strconv.Atoi(parsed[1])
+		acceptBallot.id, _ = strconv.Atoi(parsed[2])
+		if (acceptBallot == lastBallot) || (isGreaterBallot(acceptBallot)) {
+			noReturn = true
+			lastBallot = acceptBallot
+			acceptedMessage := getAcceptedMessage(acceptBallot.num)
+			sendToClients(acceptedMessage)
+		}
 	} else if command == "ACCEPTED" {
+		//sequenceNum, _ := strconv.Atoi(parsed[1])
+		receivedBlocks = append(receivedBlocks, parseRange(parsed[2])...)
+		acceptedCount++
+
 	} else if command == "COMMIT" {
+		addBlockchain(parseRange(parsed[2]))
+		noReturn = false
 	}
 }
 
