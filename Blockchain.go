@@ -1,45 +1,63 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
 	"reflect"
-	"strconv"
 	"strings"
 )
 
-type Block struct {
-	sender, receiver string
-	amount     		 int
+type Transaction struct {
+	Sender, Receiver string
+	Amount           int
 }
 
-var blockchain [][]Block
+type Block struct {
+	SeqNum int
+	Tx     []Transaction
+}
 
-func init()  {
+var blockchain []Block
+var pendingTx []Transaction
+
+/*
+func init() {
 	blockchain = append(blockchain, make([]Block, 0))
 }
-
+*/
 func calculateBalances() map[string]int {
 	balance := make(map[string]int)
 
+	for _, tx := range pendingTx {
+		balance[tx.Receiver] += tx.Amount
+		balance[tx.Sender] -= tx.Amount
+	}
+
 	for _, currblockchain := range blockchain {
-		for _, block := range currblockchain {
-			balance[block.receiver] += block.amount
-			balance[block.sender] -= block.amount
+		for _, block := range currblockchain.Tx {
+			balance[block.Receiver] += block.Amount
+			balance[block.Sender] -= block.Amount
 		}
 	}
 
 	return balance
 }
 
+func (tx *Transaction) toString() string {
+	res, _ := json.Marshal(tx)
+	return string(res)
+}
+
 func (block *Block) toString() string {
-	return fmt.Sprintf("%s&%s&%d\n", block.sender, block.receiver, block.amount)
+	res, _ := json.Marshal(block)
+	return string(res)
 }
 
 func parseBlock(block string) Block {
-	parsed := strings.Split(block, "&")
-	amount, _ := strconv.Atoi(parsed[2])
-
-	return Block{sender: parsed[0], receiver: parsed[1], amount: amount}
+	var res Block
+	if err := json.Unmarshal([]byte(block), &res); err != nil {
+		panic(err)
+	}
+	return res
 }
 
 func rangeToString(blocks []Block) string {
@@ -65,13 +83,14 @@ func parseRange(blocks string) []Block {
 	return createdBlocks
 }
 
+/*
 func addBlock(sender, receiver string, amount int) {
-	blockchain[len(blockchain) - 1] = append(blockchain[len(blockchain) - 1],
+	blockchain[len(blockchain)-1] = append(blockchain[len(blockchain)-1],
 		Block{sender: sender, receiver: receiver, amount: amount})
 }
-
-func addBlockchain(blocks []Block) {
-	blockchain[len(blockchain) - 1] = append(blockchain[len(blockchain) - 1], blocks...)
+*/
+func addBlock(block Block) {
+	blockchain = append(blockchain, block)
 }
 
 func commitBlockchain(blocks []Block) {
@@ -96,11 +115,11 @@ func commitBlockchain(blocks []Block) {
 }
 
 func getCurrBlockChain() []Block {
-	return blockchain[len(blockchain) - 1]
+	return blockchain[len(blockchain)-1]
 }
 
 func clearCurrBlockChain() {
-	blockchain[len(blockchain) - 1] = nil
+	blockchain[len(blockchain)-1] = nil
 }
 
 func getCurrSeqNumber() int {
@@ -111,4 +130,13 @@ func getBalance(user string) int {
 	balances := calculateBalances()
 
 	return balances[user] + 10
+}
+
+func getBlock(seqnum int) *Block {
+	for _, block := range blockchain {
+		if block.SeqNum == seqnum {
+			return &block
+		}
+	}
+	return nil
 }

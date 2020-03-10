@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -84,9 +85,15 @@ func handleReceivedMessage(message string) {
 		if noReturn {
 			return
 		}
-		var receivedBallot BallotNum
-		receivedBallot.num, _ = strconv.Atoi(parsed[1])
-		receivedBallot.id, _ = strconv.Atoi(parsed[2])
+		var prepareMessage Message
+		json.Unmarshal([]byte(parsed[1]), &prepareMessage)
+		receivedBallot := prepareMessage.Ballot
+		block := getBlock(receivedBallot.Num)
+		if block != nil {
+			commitMsg := getCommitMessage(*block)
+			sendClient(receivedBallot.Id, commitMsg)
+		}
+
 		if isGreaterBallot(receivedBallot) {
 			lastBallot = receivedBallot
 			ackMessage := "ACK@" + string(receivedBallot.num) + "@" + string(receivedBallot.id)
