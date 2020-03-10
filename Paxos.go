@@ -1,6 +1,9 @@
 package main
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 const timeout int = 2
 
@@ -12,8 +15,14 @@ var noReturn bool = false
 var receivedBlocks []Block
 
 type BallotNum struct {
-	num int
-	id  int
+	Num int
+	Id  int
+}
+
+type Message struct {
+	Ballot   BallotNum
+	Accepted bool
+	block    Block
 }
 
 var lastBallot BallotNum
@@ -65,7 +74,9 @@ func beginSync() {
 }
 
 func getPrepareMessage(ballot BallotNum) string {
-	return "PREPARE@" + string(ballot.num) + "@" + string(ballot.id)
+	msg := Message{ballot, false, nil}
+	serMsg, _ = json.Marshal(msg)
+	return "PREPARE@" + string(serMsg)
 }
 
 func getAcceptMessage(ballot BallotNum) string {
@@ -75,6 +86,9 @@ func getAcceptMessage(ballot BallotNum) string {
 func getAcceptedMessage(sequenceNum int) string {
 	return "ACCEPTED@" + string(sequenceNum) + "@" + rangeToString(getCurrBlockChain())
 }
-func getCommitMessage(sequenceNum int, blocks []Block) string {
-	return "COMMIT@" + string(sequenceNum) + "@" + rangeToString(blocks)
+func getCommitMessage(block Block) string {
+	ballot := BallotNum(block.sequenceNum, getId())
+	msg := Message(ballot, true, block)
+	serMsg, _ = json.Marshal(msg)
+	return "COMMIT@" + string(ser_msg)
 }
