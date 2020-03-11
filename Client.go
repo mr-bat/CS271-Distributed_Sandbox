@@ -13,6 +13,16 @@ type Client struct {
 	id int
 }
 
+var id int
+
+func setId(_id int) {
+	id = _id
+}
+
+func getId() int {
+	return id
+}
+
 func (client *Client) Receive() {
 	for {
 		message := make([]byte, 4096)

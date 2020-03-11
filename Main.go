@@ -11,6 +11,7 @@ const (
 	UnknownCode     = iota
 	TransactionCode = iota
 	BalanceCode     = iota
+	ResetDataCode	= iota
 )
 
 type Command struct {
@@ -22,9 +23,11 @@ type Command struct {
 func handleCommand(command Command) {
 	if command.cType == UnknownCode {
 	} else if command.cType == TransactionCode {
-		addTransaction(command.from, command.to, command.amount)
+		addPurchase(command.from, command.to, command.amount)
 	} else if command.cType == BalanceCode {
 		fmt.Println("User balance:", getBalance(strconv.Itoa(command.id)))
+	} else if command.cType == ResetDataCode {
+		clearCurrTransactions()
 	} else {
 		fmt.Println("Unknown Command")
 	}
@@ -37,9 +40,8 @@ func main() {
 
 	addrs := getClientAddrs()
 	connectToClients(addrs)
-	initializeTimetable(GetNumberOfClients() + 2)
 	advertiseId()
-	lastBallot = BallotNum{0, getId()}
+	lastBallot = Ballot{0, getId()}
 
 	for {
 		fmt.Println("Please enter your command: ")

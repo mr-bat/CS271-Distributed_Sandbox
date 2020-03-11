@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"reflect"
 	"time"
 )
 
@@ -9,32 +10,62 @@ const timeout int = 2
 
 var ackCount int
 var acceptedCount int
+var lowestAck int
 
-var noReturn bool = false
 
-var receivedBlocks []Block
+var receivedTransactions []Transaction
 
-type BallotNum struct {
+type Ballot struct {
 	Num int
 	Id  int
 }
 
 type Message struct {
-	Ballot   BallotNum
+	Ballot   Ballot
 	Accepted bool
 	block    Block
 }
 
-var lastBallot BallotNum
+var lastestBallotNumber int
+var lastBallot Ballot
 
-func isGreaterBallot(bn BallotNum) bool {
-	if bn.num > lastBallot.num {
+func init() {
+	lastestBallotNumber = 0
+}
+
+func isGreaterBallot(bn Ballot) bool {
+	if bn.Num > lastBallot.Num {
 		return true
-	} else if bn.num == lastBallot.num && bn.id > lastBallot.id {
+	} else if bn.Num == lastBallot.Num && bn.Id > lastBallot.Id {
 		return true
 	}
 	return false
+}
 
+func (ballot Ballot) toString() string {
+	res, _ := json.Marshal(ballot)
+	return string(res)
+}
+
+func parseBallot(ballot string) Ballot {
+	var res Ballot
+	if err := json.Unmarshal([]byte(ballot), &res); err != nil {
+		panic(err)
+	}
+	return res
+}
+
+func (msg Message) toString() string {
+	res, _ := json.Marshal(msg)
+	return string(res)
+}
+
+func parseMessage(tx string) Message {
+	var res Message
+	if err := json.Unmarshal([]byte(tx), &res); err != nil {
+		panic(err)
+	}
+	return res
 }
 
 func getQuorumSize() int {
@@ -42,53 +73,84 @@ func getQuorumSize() int {
 }
 
 func beginSync() {
+	var lastCommitedBlock Block
+	var commitingAcceptedBlock bool
+
+	beginProtocol:
+
 	ackCount = 0
 	acceptedCount = 0
-	receivedBlocks = nil
-	var myBallot BallotNum = BallotNum{lastBallot.num + 1, getId()}
+	receivedTransactions = nil
+	lastCommitedBlock = getLastBlock()
+	commitingAcceptedBlock = false
+	lowestAck = getCurrSeqNumber()
+	lastestBallotNumber++
+	var myBallot = Ballot{lastestBallotNumber, getId()}
 	lastBallot = myBallot
+
 	prepareMessage := getPrepareMessage(myBallot)
 	sendToClients(prepareMessage)
 	time.Sleep(time.Duration(timeout) * time.Second)
-	if myBallot != lastBallot {
-		return
+	if (ackCount + 1) < getQuorumSize() || !reflect.DeepEqual(lastCommitedBlock, getLastBlock()) {
+		goto beginProtocol
 	}
-	if (ackCount + 1) < getQuorumSize() {
-		return
+	if lowestAck + 1 < getCurrSeqNumber() {
+		for lowestAck + 1 < getCurrSeqNumber() {
+			sendToClients(getCommitMessage(getBlock(lowestAck+1)))
+			lowestAck++
+		}
+		goto beginProtocol
 	}
-	acceptMessage := getAcceptMessage(myBallot)
-	sendToClients(acceptMessage)
+
+	if acceptedBlock.isEmpty() {
+		newBlock := createNewBlock()
+		newBlock.Tx = append(newBlock.Tx, receivedTransactions...)
+		receivedTransactions = nil
+		acceptedBlock = newBlock
+		sendToClients(getAcceptMessage(myBallot, acceptedBlock))
+	} else {
+		commitingAcceptedBlock = true
+		sendToClients(getAcceptMessage(myBallot, acceptedBlock))
+	}
 	time.Sleep(time.Duration(timeout) * time.Second)
-	if myBallot != lastBallot {
-		return
-	}
 	if (acceptedCount + 1) < getQuorumSize() {
-		return
+		goto beginProtocol
 	}
-	noReturn = true
-	newBlock := append(getCurrBlockChain(), receivedBlocks...)
-	addBlockchain(newBlock)
-	commitMessage := getCommitMessage(myBallot.num, newBlock)
-	sendToClients(commitMessage)
-	noReturn = false
+
+	commitBlock(acceptedBlock)
+	sendToClients(getCommitMessage(acceptedBlock))
+	if commitingAcceptedBlock {
+		goto beginProtocol
+	}
 }
 
-func getPrepareMessage(ballot BallotNum) string {
-	msg := Message{ballot, false, nil}
-	serMsg, _ = json.Marshal(msg)
-	return "PREPARE@" + string(serMsg)
+func getPrepareMessage(ballot Ballot) string {
+	return "PREPARE@" + Message{ballot, false, getLastBlock()}.toString()
 }
 
-func getAcceptMessage(ballot BallotNum) string {
-	return "ACCEPT@" + string(ballot.num) + "@" + string(ballot.id) + "@" + rangeToString(getCurrBlockChain())
+func getAckMessage(ballot Ballot) string {
+	var currBlk Block
+	if acceptedBlock.isEmpty() {
+		currBlk = createNewBlock()
+	} else {
+		currBlk = acceptedBlock
+	}
+
+	return "ACK@" + Message{
+		Ballot:   ballot,
+		Accepted: !acceptedBlock.isEmpty(),
+		block:    currBlk,
+	}.toString()
 }
 
-func getAcceptedMessage(sequenceNum int) string {
-	return "ACCEPTED@" + string(sequenceNum) + "@" + rangeToString(getCurrBlockChain())
+func getAcceptMessage(ballot Ballot, block Block) string {
+	return "ACCEPT@" + Message{Ballot: ballot, Accepted: false, block: block}.toString()
 }
+
+func getAcceptedMessage(ballot Ballot) string {
+	return "ACCEPTED@" + Message{Ballot: ballot, Accepted: false, block: Block{}}.toString()
+}
+
 func getCommitMessage(block Block) string {
-	ballot := BallotNum(block.sequenceNum, getId())
-	msg := Message(ballot, true, block)
-	serMsg, _ = json.Marshal(msg)
-	return "COMMIT@" + string(ser_msg)
+	return "COMMIT@" + Message{Ballot{lastestBallotNumber, 0}, true, block}.toString()
 }

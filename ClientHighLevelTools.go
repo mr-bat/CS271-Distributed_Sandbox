@@ -1,8 +1,9 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
+	"github.com/adam-lavrik/go-imath/ix"
 	"net"
 	"strconv"
 	"strings"
@@ -82,43 +83,52 @@ func handleReceivedMessage(message string) {
 		id, _ := strconv.Atoi(parsed[1])
 		addClientId(id, parsed[2])
 	} else if command == "PREPARE" {
-		if noReturn {
-			return
-		}
-		var prepareMessage Message
-		json.Unmarshal([]byte(parsed[1]), &prepareMessage)
+		prepareMessage := parseMessage(parsed[1])
 		receivedBallot := prepareMessage.Ballot
-		block := getBlock(receivedBallot.Num)
-		if block != nil {
-			commitMsg := getCommitMessage(*block)
+		block := getBlock(prepareMessage.block.SeqNum + 1)
+		if !block.isEmpty() {
+			commitMsg := getCommitMessage(block)
 			sendClient(receivedBallot.Id, commitMsg)
-		}
-
-		if isGreaterBallot(receivedBallot) {
+		} else if isGreaterBallot(receivedBallot) {
 			lastBallot = receivedBallot
-			ackMessage := "ACK@" + string(receivedBallot.num) + "@" + string(receivedBallot.id)
-			sendClient(receivedBallot.id, ackMessage)
+			sendClient(receivedBallot.Id, getAckMessage(receivedBallot))
 		}
+		lastestBallotNumber = ix.Max(lastestBallotNumber, prepareMessage.Ballot.Num)
 	} else if command == "ACK" {
-		ackCount++
-	} else if command == "ACCEPT" {
-		var acceptBallot BallotNum
-		acceptBallot.num, _ = strconv.Atoi(parsed[1])
-		acceptBallot.id, _ = strconv.Atoi(parsed[2])
-		if (acceptBallot == lastBallot) || (isGreaterBallot(acceptBallot)) {
-			noReturn = true
-			lastBallot = acceptBallot
-			acceptedMessage := getAcceptedMessage(acceptBallot.num)
-			sendToClients(acceptedMessage)
+		ackMessage := parseMessage(parsed[1])
+		if ackMessage.Ballot == lastBallot {
+			if ackMessage.Accepted {
+				acceptedBlock = ackMessage.block
+				lowestAck = ix.Min(lowestAck, ackMessage.block.SeqNum - 1)
+			} else {
+				receivedTransactions = append(receivedTransactions, ackMessage.block.Tx...)
+				lowestAck = ix.Min(lowestAck, ackMessage.block.SeqNum)
+			}
+			ackCount++
 		}
+		lastestBallotNumber = ix.Max(lastestBallotNumber, ackMessage.Ballot.Num)
+	} else if command == "ACCEPT" {
+		acceptMessage := parseMessage(parsed[1])
+		if acceptMessage.Ballot == lastBallot {
+			acceptedBlock = acceptMessage.block
+			sendClient(acceptMessage.Ballot.Id, getAcceptedMessage(acceptMessage.Ballot))
+		}
+		lastestBallotNumber = ix.Max(lastestBallotNumber, acceptMessage.Ballot.Num)
 	} else if command == "ACCEPTED" {
-		//sequenceNum, _ := strconv.Atoi(parsed[1])
-		receivedBlocks = append(receivedBlocks, parseRange(parsed[2])...)
-		acceptedCount++
-
+		acceptedMessage := parseMessage(parsed[1])
+		if acceptedMessage.Ballot == lastBallot {
+			acceptedCount++
+		}
+		lastestBallotNumber = ix.Max(lastestBallotNumber, acceptedMessage.Ballot.Num)
 	} else if command == "COMMIT" {
-		addBlockchain(parseRange(parsed[2]))
-		noReturn = false
+		commitMessage := parseMessage(parsed[1])
+		if getBlock(commitMessage.block.SeqNum).isEmpty() {
+			if commitMessage.block.SeqNum >= acceptedBlock.SeqNum {
+				acceptedBlock = Block{}
+			}
+			commitBlock(commitMessage.block)
+		}
+		lastestBallotNumber = ix.Max(lastestBallotNumber, commitMessage.Ballot.Num)
 	}
 }
 
@@ -139,26 +149,7 @@ func addClientId(id int, address string) {
 	}
 }
 
-func updateSelf(_timetable [][]int, blocks []Block, informerId int) {
-	newBlocks := pickNewBlocks(blocks, getId())
-	Logger.WithFields(logrus.Fields{
-		"received-timetable": _timetable,
-		"received-blocks":    blocks,
-		"blockchain":         blockchain,
-		"filtered-blocks":    newBlocks,
-		"informer-id":        informerId,
-	}).Info("updating self")
-
-	updateTimetable(_timetable, informerId, getId())
-	addBlockchain(newBlocks)
-
-	Logger.WithFields(logrus.Fields{
-		"updated-timetable":  timetable,
-		"updated-blockchain": blockchain,
-	}).Info("updated self")
-}
-
-func addTransaction(from, to string, amount int) {
+func addPurchase(from, to string, amount int) {
 	initialBalance := getBalance(from)
 	Logger.WithFields(logrus.Fields{
 		"from":                   from,
@@ -174,13 +165,16 @@ func addTransaction(from, to string, amount int) {
 	if initialBalance < amount {
 		fmt.Println("INCORRECT")
 	} else {
-		addBlock(from, to, amount)
+		BlockChainSemaphore.Acquire(context.Background(), 1)
+		addTransaction(Transaction{
+			Sender:   from,
+			Receiver: to,
+			Amount:   amount,
+			Id:       incClock(),
+		})
 		fmt.Println("SUCCESS")
+		BlockChainSemaphore.Release(1)
 	}
-	Logger.WithFields(logrus.Fields{
-		"timetable":          timetable,
-		"from's-new-balance": getBalance(from),
-	}).Info("updated timetable")
 }
 
 func advertiseId() {

@@ -21,7 +21,8 @@ func (this *Addr) String() string{
 }
 
 const (
-	ServerAddr = "http://178.128.139.251:8123/"
+	//ServerAddr = "http://178.128.139.251:8123/"
+	ServerAddr = "https://locshare-167709.appspot.com/"
 )
 
 func getLocalIP() net.IP {

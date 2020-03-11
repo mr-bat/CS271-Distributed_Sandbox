@@ -54,8 +54,10 @@ func getCommand() Command {
 			"id": id,
 		}).Info("received balance command")
 		return Command{cType: BalanceCode, id: id}
+	} else if message == "Reset" {
+		return Command{cType: ResetDataCode}
 	} else {
-		fmt.Println("Available options:\n * Transaction\n * Balance")
+		fmt.Println("Available options:\n * Transaction\n * Balance\n * Reset")
 		return Command{cType: UnknownCode}
 	}
 }
