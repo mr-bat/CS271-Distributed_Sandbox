@@ -2,11 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"time"
 )
 
-const timeout int = 2
+const timeout int = 3
 
 var ackCount int
 var acceptedCount int
@@ -23,7 +24,7 @@ type Ballot struct {
 type Message struct {
 	Ballot   Ballot
 	Accepted bool
-	block    Block
+	Block    Block
 }
 
 var lastestBallotNumber int
@@ -135,20 +136,26 @@ func getAckMessage(ballot Ballot) string {
 	} else {
 		currBlk = acceptedBlock
 	}
+	fmt.Printf("currBlock %v\n", currBlk)
+	fmt.Println("ACK@" + Message{
+		Ballot:   ballot,
+		Accepted: !acceptedBlock.isEmpty(),
+		Block:    currBlk,
+	}.toString())
 
 	return "ACK@" + Message{
 		Ballot:   ballot,
 		Accepted: !acceptedBlock.isEmpty(),
-		block:    currBlk,
+		Block:    currBlk,
 	}.toString()
 }
 
 func getAcceptMessage(ballot Ballot, block Block) string {
-	return "ACCEPT@" + Message{Ballot: ballot, Accepted: false, block: block}.toString()
+	return "ACCEPT@" + Message{Ballot: ballot, Accepted: false, Block: block}.toString()
 }
 
 func getAcceptedMessage(ballot Ballot) string {
-	return "ACCEPTED@" + Message{Ballot: ballot, Accepted: false, block: Block{}}.toString()
+	return "ACCEPTED@" + Message{Ballot: ballot, Accepted: false, Block: Block{}}.toString()
 }
 
 func getCommitMessage(block Block) string {
