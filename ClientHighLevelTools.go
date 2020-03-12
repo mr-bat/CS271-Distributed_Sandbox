@@ -40,11 +40,11 @@ func connectToClients(addrs []Addr) {
 }
 
 func sendToClients(message string) {
-	logMessage(message)
+	logMessage(message, true)
 	for _, client := range clients {
 		Logger.WithFields(logrus.Fields{
-			//"clientId": id,
-		}).Info("sending to all")
+			"clientId": client.id,
+		}).Info("sending to client")
 
 		client.Send(message)
 	}
@@ -52,7 +52,7 @@ func sendToClients(message string) {
 
 //nolint
 func sendClient(id int, message string) {
-	logMessage(message)
+	logMessage(message, true)
 	for _, client := range clients {
 		if client.id == id {
 			Logger.WithFields(logrus.Fields{
@@ -83,15 +83,22 @@ func startClientMode(addr Addr) *Client {
 	return client
 }
 
-func logMessage(msg string) {
+func logMessage(msg string, sending bool) {
+	infoText := "handling message"
+	shortInfo := "recv"
+	if sending {
+		infoText = "sending message"
+		shortInfo = "send"
+	}
 	parsed := strings.Split(msg, "@")
 	command := parsed[0]
 	if command != "ID" {
 		Logger.WithFields(logrus.Fields{
-			"command": parsed[0],
+			"command": shortInfo + ":" + parsed[0],
 			"message": parseMessage(parsed[1]),
+			"lowest ack": lowestAck,
 			"last ballot":  lastBallot,
-		}).Info("handling message")
+		}).Info(infoText)
 	}
 }
 
@@ -100,11 +107,12 @@ func handleReceivedMessage(message string) {
 		return
 	}
 
-	logMessage(message)
+	logMessage(message, false)
 	parsed := strings.Split(message, "@")
 	command := parsed[0]
 
 	if command == "ID" {
+		fmt.Println(parsed)
 		id, _ := strconv.Atoi(parsed[1])
 		addClientId(id, parsed[2])
 	} else if command == "PREPARE" {
@@ -113,10 +121,10 @@ func handleReceivedMessage(message string) {
 		block := getBlock(prepareMessage.Block.SeqNum + 1)
 		if !block.isEmpty() {
 			commitMsg := getCommitMessage(block)
-			sendClient(receivedBallot.Id, commitMsg)
+			sendClient(receivedBallot.ProcessId, commitMsg)
 		} else if isGreaterBallot(receivedBallot) {
 			lastBallot = receivedBallot
-			sendClient(receivedBallot.Id, getAckMessage(receivedBallot))
+			sendClient(receivedBallot.ProcessId, getAckMessage(receivedBallot))
 		}
 		latestBallotNumber = ix.Max(latestBallotNumber, prepareMessage.Ballot.Num)
 	} else if command == "ACK" {
@@ -136,7 +144,7 @@ func handleReceivedMessage(message string) {
 		acceptMessage := parseMessage(parsed[1])
 		if acceptMessage.Ballot == lastBallot {
 			acceptedBlock = acceptMessage.Block
-			sendClient(acceptMessage.Ballot.Id, getAcceptedMessage(acceptMessage.Ballot))
+			sendClient(acceptMessage.Ballot.ProcessId, getAcceptedMessage(acceptMessage.Ballot))
 		}
 		latestBallotNumber = ix.Max(latestBallotNumber, acceptMessage.Ballot.Num)
 	} else if command == "ACCEPTED" {
@@ -147,11 +155,15 @@ func handleReceivedMessage(message string) {
 		latestBallotNumber = ix.Max(latestBallotNumber, acceptedMessage.Ballot.Num)
 	} else if command == "COMMIT" {
 		commitMessage := parseMessage(parsed[1])
+		fmt.Printf("commiting: isEmpty? %v acceptedBlk %v\n", getBlock(commitMessage.Block.SeqNum).isEmpty(), acceptedBlock)
 		if getBlock(commitMessage.Block.SeqNum).isEmpty() {
 			if commitMessage.Block.SeqNum >= acceptedBlock.SeqNum {
+				fmt.Println("accepted Blk reset")
 				acceptedBlock = Block{}
 			}
-			commitBlock(commitMessage.Block)
+			if commitMessage.Block.SeqNum == 1 || !getBlock(commitMessage.Block.SeqNum - 1).isEmpty() {
+				commitBlock(commitMessage.Block)
+			}
 		}
 		latestBallotNumber = ix.Max(latestBallotNumber, commitMessage.Ballot.Num)
 	}
@@ -182,9 +194,15 @@ func addPurchase(from, to string, amount int) {
 		"amount":                 amount,
 	}).Info("current transaction")
 
+	Logger.WithFields(logrus.Fields{
+		"pending":                 pendingTx,
+	}).Info("before sync")
 	if getBalance(from) < amount {
 		beginSync()
 	}
+	Logger.WithFields(logrus.Fields{
+		"pending":                 pendingTx,
+	}).Info("after sync")
 
 	if getBalance(from) < amount {
 		fmt.Println("INCORRECT")
@@ -199,6 +217,10 @@ func addPurchase(from, to string, amount int) {
 		fmt.Println("SUCCESS")
 		BlockChainSemaphore.Release(1)
 	}
+
+	Logger.WithFields(logrus.Fields{
+		"pending":                 pendingTx,
+	}).Info("after add")
 }
 
 func advertiseId() {

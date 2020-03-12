@@ -24,9 +24,14 @@ type Command struct {
 
 var Connected = true
 func handleCommand(command Command) {
+	if command.cType == ConnectCode {
+		Connected = true
+		return
+	}
 	if !Connected {
 		return
 	}
+
 	if command.cType == UnknownCode {
 	} else if command.cType == TransactionCode {
 		addPurchase(command.from, command.to, command.amount)
@@ -35,9 +40,7 @@ func handleCommand(command Command) {
 	} else if command.cType == ResetDataCode {
 		//clearCurrTransactions()
 		clearPersistedData()
-	} else if command.cType == ConnectCode {
-		Connected = true
-	} else if command.cType == DisconnectCode {
+	}  else if command.cType == DisconnectCode {
 		Connected = false
 	} else {
 		fmt.Println("Unknown Command")

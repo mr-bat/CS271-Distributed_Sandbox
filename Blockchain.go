@@ -116,7 +116,7 @@ func addTransaction(tx Transaction) {
 func commitBlock(block Block) {
 	BlockChainSemaphore.Acquire(context.Background(), 1)
 	currTransaction := getCurrTransactions()
-	newTransactions := make([]Transaction, 1)
+	newTransactions := make([]Transaction, 0)
 
 	for _, tx := range currTransaction {
 		shouldAdd := true

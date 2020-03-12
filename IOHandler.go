@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/manifoldco/promptui"
 	"github.com/sirupsen/logrus"
 	"os"
 	"strconv"
@@ -28,11 +29,24 @@ func getIdFromInput() int {
 	return id
 }
 
-func getCommand() Command {
-	reader := bufio.NewScanner(os.Stdin)
+func getInput() string{
+	prompt := promptui.Select{
+		Label: "Select one",
+		Items: []string{"Transaction", "Balance", "Reset", "Connect", "Disconnect"},
+	}
 
-	reader.Scan()
-	message := reader.Text()
+	_, result, err := prompt.Run()
+
+	if err != nil {
+		fmt.Printf("Prompt failed %v", err)
+		panic(err)
+	}
+
+	return result
+}
+
+func getCommand() Command {
+	message := getInput()
 	if message == "Transaction" {
 		var to, amount int
 		fmt.Println("Enter: to, amount")
@@ -61,7 +75,6 @@ func getCommand() Command {
 	} else if message == "Disconnect" {
 		return Command{cType: DisconnectCode}
 	} else {
-		fmt.Println("Available options:\n * Transaction\n * Balance\n * Reset\n * Connect\n * Disconnect")
 		return Command{cType: UnknownCode}
 	}
 }

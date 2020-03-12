@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"reflect"
 	"time"
 )
@@ -17,8 +18,8 @@ var lowestAck int
 var receivedTransactions []Transaction
 
 type Ballot struct {
-	Num int
-	Id  int
+	Num       int
+	ProcessId int
 }
 
 type Message struct {
@@ -41,7 +42,7 @@ func reset() {
 func isGreaterBallot(bn Ballot) bool {
 	if bn.Num > lastBallot.Num {
 		return true
-	} else if bn.Num == lastBallot.Num && bn.Id > lastBallot.Id {
+	} else if bn.Num == lastBallot.Num && bn.ProcessId > lastBallot.ProcessId {
 		return true
 	}
 	return false
@@ -92,6 +93,9 @@ func beginSync() {
 	latestBallotNumber++
 	var myBallot = Ballot{latestBallotNumber, getId()}
 	lastBallot = myBallot
+	Logger.WithFields(logrus.Fields{
+		"lowest ack": lowestAck,
+	}).Info("begin protocol")
 
 	prepareMessage := getPrepareMessage(myBallot)
 	sendToClients(prepareMessage)
@@ -99,9 +103,9 @@ func beginSync() {
 	if (ackCount + 1) < getQuorumSize() || !reflect.DeepEqual(lastCommitedBlock, getLastBlock()) {
 		goto beginProtocol
 	}
-	if lowestAck + 1 < getCurrSeqNumber() {
-		for lowestAck + 1 < getCurrSeqNumber() {
-			sendToClients(getCommitMessage(getBlock(lowestAck+1)))
+	if lowestAck < getCurrSeqNumber() {
+		for lowestAck < getCurrSeqNumber() {
+			sendToClients(getCommitMessage(getBlock(lowestAck)))
 			lowestAck++
 		}
 		goto beginProtocol
@@ -124,6 +128,7 @@ func beginSync() {
 
 	commitBlock(acceptedBlock)
 	sendToClients(getCommitMessage(acceptedBlock))
+	acceptedBlock = Block{}
 	if commitingAcceptedBlock {
 		goto beginProtocol
 	}
