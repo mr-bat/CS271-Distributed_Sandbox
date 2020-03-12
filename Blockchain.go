@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"golang.org/x/sync/semaphore"
 	"reflect"
+	"strconv"
 )
 
 type Transaction struct {
@@ -23,9 +24,15 @@ var blockchain []Block
 var pendingTx []Transaction
 var acceptedBlock Block
 
-func init() {
+func initBlockChain() {
 	clock = 0
 	BlockChainSemaphore = semaphore.NewWeighted(int64(1))
+	blkLength, _ := strconv.Atoi(getData("blkLength"))
+	for i := 1; i <= blkLength; i++ {
+		blockchain = append(blockchain, parseBlock(getData(strconv.Itoa(i))))
+	}
+	acceptedBlock = parseBlock(getData("accepted"))
+	pendingTx = parseBlock(getData("pending")).Tx
 }
 
 func incClock() int {
@@ -37,6 +44,11 @@ func calculateBalances() map[string]int {
 	balance := make(map[string]int)
 
 	for _, tx := range pendingTx {
+		balance[tx.Receiver] += tx.Amount
+		balance[tx.Sender] -= tx.Amount
+	}
+
+	for _, tx := range acceptedBlock.Tx {
 		balance[tx.Receiver] += tx.Amount
 		balance[tx.Sender] -= tx.Amount
 	}
@@ -64,7 +76,7 @@ func parseTransaction(tx string) Transaction {
 	return res
 }
 
-func (block *Block) toString() string {
+func (block Block) toString() string {
 	res, _ := json.Marshal(block)
 	return string(res)
 }
@@ -111,6 +123,7 @@ func (block Block) merge(_block Block) Block {
 
 func addTransaction(tx Transaction) {
 	pendingTx = append(pendingTx, tx)
+	storeData("pending", Block{Tx: pendingTx}.toString())
 }
 
 func commitBlock(block Block) {
@@ -133,6 +146,9 @@ func commitBlock(block Block) {
 	}
 
 	blockchain = append(blockchain, block)
+	storeData("blkLength", strconv.Itoa(len(blockchain)))
+	storeData(strconv.Itoa(len(blockchain)), block.toString())
+
 
 	clearCurrTransactions()
 	for _, tx := range newTransactions {
@@ -147,11 +163,15 @@ func getCurrTransactions() []Transaction {
 
 func clearCurrTransactions() {
 	pendingTx = nil
+	storeData("pending", Block{Tx: pendingTx}.toString())
 }
 
 func clearPersistedData() {
 	blockchain = nil
 	acceptedBlock = Block{}
+	storeData("blkLength", strconv.Itoa(0))
+	storeData("accepted", acceptedBlock.toString())
+
 	reset()
 }
 

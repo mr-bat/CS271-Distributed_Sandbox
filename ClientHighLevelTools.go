@@ -132,6 +132,7 @@ func handleReceivedMessage(message string) {
 		if ackMessage.Ballot == lastBallot {
 			if ackMessage.Accepted {
 				acceptedBlock = ackMessage.Block
+				storeData("accepted", acceptedBlock.toString())
 				lowestAck = ix.Min(lowestAck, ackMessage.Block.SeqNum - 1)
 			} else {
 				receivedTransactions = append(receivedTransactions, ackMessage.Block.Tx...)
@@ -144,6 +145,7 @@ func handleReceivedMessage(message string) {
 		acceptMessage := parseMessage(parsed[1])
 		if acceptMessage.Ballot == lastBallot {
 			acceptedBlock = acceptMessage.Block
+			storeData("accepted", acceptedBlock.toString())
 			sendClient(acceptMessage.Ballot.ProcessId, getAcceptedMessage(acceptMessage.Ballot))
 		}
 		latestBallotNumber = ix.Max(latestBallotNumber, acceptMessage.Ballot.Num)
@@ -160,6 +162,7 @@ func handleReceivedMessage(message string) {
 			if commitMessage.Block.SeqNum >= acceptedBlock.SeqNum {
 				fmt.Println("accepted Blk reset")
 				acceptedBlock = Block{}
+				storeData("accepted", acceptedBlock.toString())
 			}
 			if commitMessage.Block.SeqNum == 1 || !getBlock(commitMessage.Block.SeqNum - 1).isEmpty() {
 				commitBlock(commitMessage.Block)

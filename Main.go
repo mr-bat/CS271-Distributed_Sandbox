@@ -63,6 +63,7 @@ func main() {
 	addrs := getClientAddrs()
 	connectToClients(addrs)
 	advertiseId()
+	initBlockChain()
 	lastBallot = Ballot{0, getId()}
 
 	for {

@@ -116,6 +116,7 @@ func beginSync() {
 		newBlock.Tx = append(newBlock.Tx, receivedTransactions...)
 		receivedTransactions = nil
 		acceptedBlock = newBlock
+		storeData("accepted", acceptedBlock.toString())
 		sendToClients(getAcceptMessage(myBallot, acceptedBlock))
 	} else {
 		commitingAcceptedBlock = true
@@ -129,6 +130,7 @@ func beginSync() {
 	commitBlock(acceptedBlock)
 	sendToClients(getCommitMessage(acceptedBlock))
 	acceptedBlock = Block{}
+	storeData("accepted", acceptedBlock.toString())
 	if commitingAcceptedBlock {
 		goto beginProtocol
 	}
