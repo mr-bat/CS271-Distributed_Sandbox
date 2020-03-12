@@ -40,17 +40,25 @@ func connectToClients(addrs []Addr) {
 }
 
 func sendToClients(message string) {
+	logMessage(message)
 	for _, client := range clients {
-		println("sending: " + message)
+		Logger.WithFields(logrus.Fields{
+			//"clientId": id,
+		}).Info("sending to all")
+
 		client.Send(message)
 	}
 }
 
 //nolint
 func sendClient(id int, message string) {
+	logMessage(message)
 	for _, client := range clients {
 		if client.id == id {
-			println("sending: " + message)
+			Logger.WithFields(logrus.Fields{
+				"clientId": id,
+			}).Info("sending to client")
+
 			client.Send(message)
 		}
 	}
@@ -75,15 +83,26 @@ func startClientMode(addr Addr) *Client {
 	return client
 }
 
-func handleReceivedMessage(message string) {
-	parsed := strings.Split(message, "@")
+func logMessage(msg string) {
+	parsed := strings.Split(msg, "@")
 	command := parsed[0]
 	if command != "ID" {
 		Logger.WithFields(logrus.Fields{
+			"command": parsed[0],
 			"message": parseMessage(parsed[1]),
 			"last ballot":  lastBallot,
 		}).Info("handling message")
 	}
+}
+
+func handleReceivedMessage(message string) {
+	if !Connected {
+		return
+	}
+
+	logMessage(message)
+	parsed := strings.Split(message, "@")
+	command := parsed[0]
 
 	if command == "ID" {
 		id, _ := strconv.Atoi(parsed[1])
@@ -99,7 +118,7 @@ func handleReceivedMessage(message string) {
 			lastBallot = receivedBallot
 			sendClient(receivedBallot.Id, getAckMessage(receivedBallot))
 		}
-		lastestBallotNumber = ix.Max(lastestBallotNumber, prepareMessage.Ballot.Num)
+		latestBallotNumber = ix.Max(latestBallotNumber, prepareMessage.Ballot.Num)
 	} else if command == "ACK" {
 		ackMessage := parseMessage(parsed[1])
 		if ackMessage.Ballot == lastBallot {
@@ -112,20 +131,20 @@ func handleReceivedMessage(message string) {
 			}
 			ackCount++
 		}
-		lastestBallotNumber = ix.Max(lastestBallotNumber, ackMessage.Ballot.Num)
+		latestBallotNumber = ix.Max(latestBallotNumber, ackMessage.Ballot.Num)
 	} else if command == "ACCEPT" {
 		acceptMessage := parseMessage(parsed[1])
 		if acceptMessage.Ballot == lastBallot {
 			acceptedBlock = acceptMessage.Block
 			sendClient(acceptMessage.Ballot.Id, getAcceptedMessage(acceptMessage.Ballot))
 		}
-		lastestBallotNumber = ix.Max(lastestBallotNumber, acceptMessage.Ballot.Num)
+		latestBallotNumber = ix.Max(latestBallotNumber, acceptMessage.Ballot.Num)
 	} else if command == "ACCEPTED" {
 		acceptedMessage := parseMessage(parsed[1])
 		if acceptedMessage.Ballot == lastBallot {
 			acceptedCount++
 		}
-		lastestBallotNumber = ix.Max(lastestBallotNumber, acceptedMessage.Ballot.Num)
+		latestBallotNumber = ix.Max(latestBallotNumber, acceptedMessage.Ballot.Num)
 	} else if command == "COMMIT" {
 		commitMessage := parseMessage(parsed[1])
 		if getBlock(commitMessage.Block.SeqNum).isEmpty() {
@@ -134,7 +153,7 @@ func handleReceivedMessage(message string) {
 			}
 			commitBlock(commitMessage.Block)
 		}
-		lastestBallotNumber = ix.Max(lastestBallotNumber, commitMessage.Ballot.Num)
+		latestBallotNumber = ix.Max(latestBallotNumber, commitMessage.Ballot.Num)
 	}
 }
 

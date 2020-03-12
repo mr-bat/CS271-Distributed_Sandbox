@@ -44,10 +44,10 @@ func (manager *ClientManager) Receive(client *Client) {
 		}
 		if length > 0 {
 			message = bytes.Trim(message, "\x00")
-			Logger.WithFields(logrus.Fields{
-				"data" : string(message),
-				//"client" : getAddress(),
-			}).Info("received data")
+			//Logger.WithFields(logrus.Fields{  //NOTE: is very useful!
+			//	"data" : string(message),
+			//	//"client" : getAddress(),
+			//}).Info("received data")
 			handleReceivedMessage(string(message))
 			//manager.mainChannel <- message
 		}

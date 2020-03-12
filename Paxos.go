@@ -27,11 +27,15 @@ type Message struct {
 	Block    Block
 }
 
-var lastestBallotNumber int
+var latestBallotNumber int
 var lastBallot Ballot
 
 func init() {
-	lastestBallotNumber = 0
+	latestBallotNumber = 0
+}
+
+func reset() {
+	latestBallotNumber = 0
 }
 
 func isGreaterBallot(bn Ballot) bool {
@@ -85,8 +89,8 @@ func beginSync() {
 	lastCommitedBlock = getLastBlock()
 	commitingAcceptedBlock = false
 	lowestAck = getCurrSeqNumber()
-	lastestBallotNumber++
-	var myBallot = Ballot{lastestBallotNumber, getId()}
+	latestBallotNumber++
+	var myBallot = Ballot{latestBallotNumber, getId()}
 	lastBallot = myBallot
 
 	prepareMessage := getPrepareMessage(myBallot)
@@ -159,5 +163,5 @@ func getAcceptedMessage(ballot Ballot) string {
 }
 
 func getCommitMessage(block Block) string {
-	return "COMMIT@" + Message{Ballot{lastestBallotNumber, 0}, true, block}.toString()
+	return "COMMIT@" + Message{Ballot{latestBallotNumber, 0}, true, block}.toString()
 }

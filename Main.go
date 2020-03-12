@@ -12,6 +12,8 @@ const (
 	TransactionCode = iota
 	BalanceCode     = iota
 	ResetDataCode	= iota
+	ConnectCode		= iota
+	DisconnectCode  = iota
 )
 
 type Command struct {
@@ -20,14 +22,23 @@ type Command struct {
 	amount, id int
 }
 
+var Connected = true
 func handleCommand(command Command) {
+	if !Connected {
+		return
+	}
 	if command.cType == UnknownCode {
 	} else if command.cType == TransactionCode {
 		addPurchase(command.from, command.to, command.amount)
 	} else if command.cType == BalanceCode {
 		fmt.Println("User balance:", getBalance(strconv.Itoa(command.id)))
 	} else if command.cType == ResetDataCode {
-		clearCurrTransactions()
+		//clearCurrTransactions()
+		clearPersistedData()
+	} else if command.cType == ConnectCode {
+		Connected = true
+	} else if command.cType == DisconnectCode {
+		Connected = false
 	} else {
 		fmt.Println("Unknown Command")
 	}

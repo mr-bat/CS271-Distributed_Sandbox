@@ -56,8 +56,12 @@ func getCommand() Command {
 		return Command{cType: BalanceCode, id: id}
 	} else if message == "Reset" {
 		return Command{cType: ResetDataCode}
+	} else if message == "Connect" {
+		return Command{cType: ConnectCode}
+	} else if message == "Disconnect" {
+		return Command{cType: DisconnectCode}
 	} else {
-		fmt.Println("Available options:\n * Transaction\n * Balance\n * Reset")
+		fmt.Println("Available options:\n * Transaction\n * Balance\n * Reset\n * Connect\n * Disconnect")
 		return Command{cType: UnknownCode}
 	}
 }

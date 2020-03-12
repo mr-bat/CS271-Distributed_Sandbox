@@ -149,6 +149,12 @@ func clearCurrTransactions() {
 	pendingTx = nil
 }
 
+func clearPersistedData() {
+	blockchain = nil
+	acceptedBlock = Block{}
+	reset()
+}
+
 func createNewBlock() Block {
 	return Block{
 		SeqNum: getCurrSeqNumber(),
