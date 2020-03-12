@@ -155,7 +155,7 @@ func handleReceivedMessage(message string) {
 		latestBallotNumber = ix.Max(latestBallotNumber, acceptedMessage.Ballot.Num)
 	} else if command == "COMMIT" {
 		commitMessage := parseMessage(parsed[1])
-		fmt.Printf("commiting: isEmpty? %v acceptedBlk %v\n", getBlock(commitMessage.Block.SeqNum).isEmpty(), acceptedBlock)
+		fmt.Printf("commiting: newBlk? %v acceptedBlk %v\n", getBlock(commitMessage.Block.SeqNum).isEmpty(), acceptedBlock)
 		if getBlock(commitMessage.Block.SeqNum).isEmpty() {
 			if commitMessage.Block.SeqNum >= acceptedBlock.SeqNum {
 				fmt.Println("accepted Blk reset")

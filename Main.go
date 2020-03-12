@@ -14,6 +14,7 @@ const (
 	ResetDataCode	= iota
 	ConnectCode		= iota
 	DisconnectCode  = iota
+	PrintCode		= iota
 )
 
 type Command struct {
@@ -37,6 +38,13 @@ func handleCommand(command Command) {
 		addPurchase(command.from, command.to, command.amount)
 	} else if command.cType == BalanceCode {
 		fmt.Println("User balance:", getBalance(strconv.Itoa(command.id)))
+	} else if command.cType == PrintCode {
+		fmt.Println("Printing blockchain")
+		for i, block := range blockchain {
+			fmt.Printf("Blk %v: %v\n", i + 1, block)
+		}
+		fmt.Printf("Accepted blk: %v\n", acceptedBlock)
+		fmt.Printf("Pending Txs: %v\n", pendingTx)
 	} else if command.cType == ResetDataCode {
 		//clearCurrTransactions()
 		clearPersistedData()

@@ -32,7 +32,7 @@ func getIdFromInput() int {
 func getInput() string{
 	prompt := promptui.Select{
 		Label: "Select one",
-		Items: []string{"Transaction", "Balance", "Reset", "Connect", "Disconnect"},
+		Items: []string{"Transaction", "Balance", "Print", "Reset", "Connect", "Disconnect"},
 	}
 
 	_, result, err := prompt.Run()
@@ -54,8 +54,8 @@ func getCommand() Command {
 		fmt.Scan(&amount)
 
 		Logger.WithFields(logrus.Fields{
-			"from": getId(),
-			"to": to,
+			"from":   getId(),
+			"to":     to,
 			"amount": amount,
 		}).Info("received transaction command")
 		return Command{cType: TransactionCode, from: strconv.Itoa(getId()), to: strconv.Itoa(to), amount: amount}
@@ -68,6 +68,8 @@ func getCommand() Command {
 			"id": id,
 		}).Info("received balance command")
 		return Command{cType: BalanceCode, id: id}
+	} else if message == "Print" {
+		return Command{cType: PrintCode}
 	} else if message == "Reset" {
 		return Command{cType: ResetDataCode}
 	} else if message == "Connect" {
