@@ -27,12 +27,16 @@ var acceptedBlock Block
 func initBlockChain() {
 	clock = 0
 	BlockChainSemaphore = semaphore.NewWeighted(int64(1))
-	blkLength, _ := strconv.Atoi(getData("blkLength"))
-	for i := 1; i <= blkLength; i++ {
-		blockchain = append(blockchain, parseBlock(getData(strconv.Itoa(i))))
+
+	if getData("initialized") == "YES" {
+		blkLength, _ := strconv.Atoi(getData("blkLength"))
+		for i := 1; i <= blkLength; i++ {
+			blockchain = append(blockchain, parseBlock(getData(strconv.Itoa(i))))
+		}
+		acceptedBlock = parseBlock(getData("accepted"))
+		pendingTx = parseBlock(getData("pending")).Tx
 	}
-	acceptedBlock = parseBlock(getData("accepted"))
-	pendingTx = parseBlock(getData("pending")).Tx
+	storeData("initialized", "YES")
 }
 
 func incClock() int {

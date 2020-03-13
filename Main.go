@@ -3,7 +3,10 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 )
 
@@ -56,6 +59,18 @@ func handleCommand(command Command) {
 }
 
 func main() {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan,
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT)
+	go func() {
+		_ = <- sigChan
+		clearData()
+		os.Exit(0)
+	}()
+
 	rand.Seed(time.Now().UTC().UnixNano())
 	PortNumber = 7180 + rand.Intn(100)
 	startServer(PortNumber)
