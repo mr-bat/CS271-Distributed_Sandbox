@@ -68,6 +68,9 @@ func main() {
 	go func() {
 		_ = <- sigChan
 		clearData()
+		for _, addr := range getClientAddrs() {
+			removeServerAddr(addr)
+		}
 		os.Exit(0)
 	}()
 
