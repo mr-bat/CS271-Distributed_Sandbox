@@ -44,10 +44,10 @@ func (manager *ClientManager) Receive(client *Client) {
 		}
 		if length > 0 {
 			message = bytes.Trim(message, "\x00")
-			Logger.WithFields(logrus.Fields{
-				"data" : string(message),
-				//"client" : getAddress(),
-			}).Info("received data")
+			//Logger.WithFields(logrus.Fields{  //NOTE: is very useful!
+			//	"data" : string(message),
+			//	//"client" : getAddress(),
+			//}).Info("received data")
 			handleReceivedMessage(string(message))
 			//manager.mainChannel <- message
 		}
@@ -57,16 +57,14 @@ func (manager *ClientManager) Receive(client *Client) {
 func (manager *ClientManager) Send(client *Client) {
 	defer client.socket.Close()
 	for {
-		select {
-		case message, ok := <-client.data:
-			if !ok {
-				return
-			}
-			client.socket.Write(message)
-			Logger.WithFields(logrus.Fields{
-				"data" : message,
-				"client" : getAddress(),
-			}).Info("sent data")
+		message, ok := <-client.data
+		if !ok {
+			return
 		}
+		_, _ = client.socket.Write(message)
+		Logger.WithFields(logrus.Fields{
+			"data" : message,
+			"client" : getAddress(),
+		}).Info("sent data")
 	}
 }

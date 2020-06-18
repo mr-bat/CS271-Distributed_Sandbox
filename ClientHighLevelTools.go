@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"github.com/sirupsen/logrus"
+	"github.com/adam-lavrik/go-imath/ix"
 	"net"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 var clients []*Client
@@ -32,27 +36,36 @@ func connectToClients(addrs []Addr) {
 		}
 	}
 
-	clients =  _clients
+	clients = _clients
 }
 
 func sendToClients(message string) {
+	logMessage(message, true)
 	for _, client := range clients {
-		println("sending: " + message)
+		Logger.WithFields(logrus.Fields{
+			"clientId": client.id,
+		}).Info("sending to client")
+
 		client.Send(message)
 	}
 }
 
+//nolint
 func sendClient(id int, message string) {
+	logMessage(message, true)
 	for _, client := range clients {
 		if client.id == id {
-			println("sending: " + message)
+			Logger.WithFields(logrus.Fields{
+				"clientId": id,
+			}).Info("sending to client")
+
 			client.Send(message)
 		}
 	}
 }
 
 func startClientMode(addr Addr) *Client {
-	connection, error := net.Dial("tcp", fmt.Sprintf("%v:%v", addr.IP, addr.Port))
+	connection, error := net.DialTimeout("tcp", fmt.Sprintf("%v:%v", addr.IP, addr.Port), 2*time.Second)
 	if error != nil {
 		//Logger.Error(error)
 		return nil
@@ -61,7 +74,7 @@ func startClientMode(addr Addr) *Client {
 	//Logger.Info("starting client...")
 	Logger.WithFields(logrus.Fields{
 		"server-address": fmt.Sprintf("%v:%v", addr.IP, addr.Port),
-		"local-address": getAddress(),
+		"local-address":  getAddress(),
 	}).Info("connecting to server")
 
 	client := &Client{socket: connection}
@@ -70,24 +83,98 @@ func startClientMode(addr Addr) *Client {
 	return client
 }
 
+func logMessage(msg string, sending bool) {
+	infoText := "handling message"
+	shortInfo := "recv"
+	if sending {
+		infoText = "sending message"
+		shortInfo = "send"
+	}
+	parsed := strings.Split(msg, "@")
+	command := parsed[0]
+	if command != "ID" {
+		Logger.WithFields(logrus.Fields{
+			"command": shortInfo + ":" + parsed[0],
+			"message": parseMessage(parsed[1]),
+			"lowest ack": lowestAck,
+			"last ballot":  lastBallot,
+		}).Info(infoText)
+	}
+}
+
 func handleReceivedMessage(message string) {
+	if !Connected {
+		return
+	}
+
+	logMessage(message, false)
 	parsed := strings.Split(message, "@")
 	command := parsed[0]
 
 	if command == "ID" {
+		fmt.Println(parsed)
 		id, _ := strconv.Atoi(parsed[1])
 		addClientId(id, parsed[2])
-	} else if command == "DATA" {
-		timetable := parseTt(parsed[1])
-		blocks := parseRange(parsed[2])
-		id, _ := strconv.Atoi(parsed[3])
-		updateSelf(timetable, blocks, id)
+	} else if command == "PREPARE" {
+		prepareMessage := parseMessage(parsed[1])
+		receivedBallot := prepareMessage.Ballot
+		block := getBlock(prepareMessage.Block.SeqNum + 1)
+		if !block.isEmpty() {
+			commitMsg := getCommitMessage(block)
+			sendClient(receivedBallot.ProcessId, commitMsg)
+		} else if isGreaterBallot(receivedBallot) {
+			lastBallot = receivedBallot
+			sendClient(receivedBallot.ProcessId, getAckMessage(receivedBallot))
+		}
+		latestBallotNumber = ix.Max(latestBallotNumber, prepareMessage.Ballot.Num)
+	} else if command == "ACK" {
+		ackMessage := parseMessage(parsed[1])
+		if ackMessage.Ballot == lastBallot {
+			if ackMessage.Accepted {
+				acceptedBlock = ackMessage.Block
+				storeData("accepted", acceptedBlock.toString())
+				lowestAck = ix.Min(lowestAck, ackMessage.Block.SeqNum - 1)
+			} else {
+				receivedTransactions = append(receivedTransactions, ackMessage.Block.Tx...)
+				lowestAck = ix.Min(lowestAck, ackMessage.Block.SeqNum)
+			}
+			ackCount++
+		}
+		latestBallotNumber = ix.Max(latestBallotNumber, ackMessage.Ballot.Num)
+	} else if command == "ACCEPT" {
+		acceptMessage := parseMessage(parsed[1])
+		if acceptMessage.Ballot == lastBallot {
+			acceptedBlock = acceptMessage.Block
+			storeData("accepted", acceptedBlock.toString())
+			sendClient(acceptMessage.Ballot.ProcessId, getAcceptedMessage(acceptMessage.Ballot))
+		}
+		latestBallotNumber = ix.Max(latestBallotNumber, acceptMessage.Ballot.Num)
+	} else if command == "ACCEPTED" {
+		acceptedMessage := parseMessage(parsed[1])
+		if acceptedMessage.Ballot == lastBallot {
+			acceptedCount++
+		}
+		latestBallotNumber = ix.Max(latestBallotNumber, acceptedMessage.Ballot.Num)
+	} else if command == "COMMIT" {
+		commitMessage := parseMessage(parsed[1])
+		fmt.Printf("commiting: newBlk? %v acceptedBlk %v\n", getBlock(commitMessage.Block.SeqNum).isEmpty(), acceptedBlock)
+		if getBlock(commitMessage.Block.SeqNum).isEmpty() {
+			if commitMessage.Block.SeqNum >= acceptedBlock.SeqNum {
+				fmt.Println("accepted Blk reset")
+				acceptedBlock = Block{}
+				storeData("accepted", acceptedBlock.toString())
+			}
+			if commitMessage.Block.SeqNum == 1 || !getBlock(commitMessage.Block.SeqNum - 1).isEmpty() {
+				commitBlock(commitMessage.Block)
+			}
+		}
+		latestBallotNumber = ix.Max(latestBallotNumber, commitMessage.Ballot.Num)
 	}
 }
 
 func addClientId(id int, address string) {
 	Logger.WithFields(logrus.Fields{
-		"id": id,
+		"id":             id,
 		"client-address": address,
 	}).Info("identifying client")
 
@@ -95,51 +182,48 @@ func addClientId(id int, address string) {
 		if _client.socket.RemoteAddr().String() == address {
 			_client.id = id
 			Logger.WithFields(logrus.Fields{
-				"id": id,
+				"id":     id,
 				"client": address,
 			}).Info("identified client")
 		}
 	}
 }
 
-func updateSelf(_timetable [][]int, blocks []Block, informerId int) {
-	newBlocks := pickNewBlocks(blocks, getId())
+func addPurchase(from, to string, amount int) {
 	Logger.WithFields(logrus.Fields{
-		"received-timetable": _timetable,
-		"received-blocks": blocks,
-		"blockchain": blockchain,
-		"filtered-blocks": newBlocks,
-		"informer-id": informerId,
-	}).Info("updating self")
-
-	updateTimetable(_timetable, informerId, getId())
-	addBlockRange(newBlocks)
-
-	Logger.WithFields(logrus.Fields{
-		"updated-timetable": timetable,
-		"updated-blockchain": blockchain,
-	}).Info("updated self")
-}
-
-func addTransaction(from, to string, amount int) {
-	initialBalance := getBalance(from)
-	Logger.WithFields(logrus.Fields{
-		"from": from,
+		"from":                   from,
 		"from's-initial-balance": getBalance(from),
-		"to": to,
-		"amount": amount,
+		"to":                     to,
+		"amount":                 amount,
 	}).Info("current transaction")
 
-	if  initialBalance >= amount {
-		addBlock(from, to, amount)
-		fmt.Println("SUCCESS")
-	} else {
-		fmt.Println("INCORRECT")
+	Logger.WithFields(logrus.Fields{
+		"pending":                 pendingTx,
+	}).Info("before sync")
+	if getBalance(from) < amount {
+		beginSync()
 	}
 	Logger.WithFields(logrus.Fields{
-		"timetable" : timetable,
-		"from's-new-balance": getBalance(from),
-	}).Info("updated timetable")
+		"pending":                 pendingTx,
+	}).Info("after sync")
+
+	if getBalance(from) < amount {
+		fmt.Println("INCORRECT")
+	} else {
+		BlockChainSemaphore.Acquire(context.Background(), 1)
+		addTransaction(Transaction{
+			Sender:   from,
+			Receiver: to,
+			Amount:   amount,
+			Id:       incClock(),
+		})
+		fmt.Println("SUCCESS")
+		BlockChainSemaphore.Release(1)
+	}
+
+	Logger.WithFields(logrus.Fields{
+		"pending":                 pendingTx,
+	}).Info("after add")
 }
 
 func advertiseId() {
@@ -147,22 +231,4 @@ func advertiseId() {
 	setId(id)
 	Logger.WithField("id", getId()).Info("set id")
 	sendToClients(fmt.Sprintf("ID@%d@%s", getId(), getAddress()))
-}
-
-func informClient(id int) {
-	Logger.WithFields(logrus.Fields{
-		"id": id,
-		"timetable": timetable,
-	}).Info("informing client")
-
-	toBeSent := pickNewBlocks(blockchain, id)
-	Logger.WithFields(logrus.Fields{
-		"toBeSent": toBeSent,
-	}).Info("picked blocks")
-	incTime()
-
-	sendClient(id, fmt.Sprintf("DATA@%s@%s@%d", convertTtToString(), rangeToString(toBeSent), getId()))
-	fmt.Printf("MESSAGE SENT TO %d\n", id)
-
-	//updateTimetable(timetable, getId(), id)
 }

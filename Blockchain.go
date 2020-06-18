@@ -1,74 +1,218 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"encoding/json"
+	"golang.org/x/sync/semaphore"
+	"reflect"
 	"strconv"
-	"strings"
 )
 
-type Block struct {
-	sender, receiver string
-	amount, time int
+type Transaction struct {
+	Sender, Receiver string
+	Amount, Id       int
 }
 
+type Block struct {
+	SeqNum int
+	Tx     []Transaction
+}
+
+var clock int
+var BlockChainSemaphore *semaphore.Weighted
 var blockchain []Block
+var pendingTx []Transaction
+var acceptedBlock Block
+
+func initBlockChain() {
+	clock = 0
+	BlockChainSemaphore = semaphore.NewWeighted(int64(1))
+
+	if getData("initialized") == "YES" {
+		blkLength, _ := strconv.Atoi(getData("blkLength"))
+		for i := 1; i <= blkLength; i++ {
+			blockchain = append(blockchain, parseBlock(getData(strconv.Itoa(i))))
+		}
+		acceptedBlock = parseBlock(getData("accepted"))
+		pendingTx = parseBlock(getData("pending")).Tx
+	}
+	storeData("initialized", "YES")
+}
+
+func incClock() int {
+	clock++
+	return clock
+}
 
 func calculateBalances() map[string]int {
 	balance := make(map[string]int)
 
-	for _, block := range blockchain {
-		balance[block.receiver] += block.amount
-		balance[block.sender] -= block.amount
+	for _, tx := range pendingTx {
+		balance[tx.Receiver] += tx.Amount
+		balance[tx.Sender] -= tx.Amount
+	}
+
+	for _, tx := range acceptedBlock.Tx {
+		balance[tx.Receiver] += tx.Amount
+		balance[tx.Sender] -= tx.Amount
+	}
+
+	for _, currblockchain := range blockchain {
+		for _, tx := range currblockchain.Tx {
+			balance[tx.Receiver] += tx.Amount
+			balance[tx.Sender] -= tx.Amount
+		}
 	}
 
 	return balance
 }
 
-func (block *Block) toString() string {
-	return fmt.Sprintf("%s&%s&%d&%d\n", block.sender, block.receiver, block.amount, block.time)
+func (tx *Transaction) toString() string {
+	res, _ := json.Marshal(tx)
+	return string(res)
 }
 
-func parseBlock(block string) Block{
-	parsed := strings.Split(block, "&")
-	amount, _ := strconv.Atoi(parsed[2])
-	time, _ := strconv.Atoi(parsed[3])
-
-	return Block{sender: parsed[0], receiver: parsed[1], amount: amount, time: time}
+func parseTransaction(tx string) Transaction {
+	var res Transaction
+	if err := json.Unmarshal([]byte(tx), &res); err != nil {
+		panic(err)
+	}
+	return res
 }
 
-func rangeToString(blocks []Block) string {
-	result := ""
+func (block Block) toString() string {
+	res, _ := json.Marshal(block)
+	return string(res)
+}
 
-	for _, block := range blocks {
-		result += block.toString()
+func parseBlock(block string) Block {
+	var res Block
+	if err := json.Unmarshal([]byte(block), &res); err != nil {
+		panic(err)
+	}
+	return res
+}
+
+func (block Block) isEmpty() bool {
+	return block.SeqNum == 0
+}
+
+func rangeToString(txs []Transaction) string {
+	res, _ := json.Marshal(txs)
+	return string(res)
+}
+
+func parseRange(txs string) []Transaction {
+	var res []Transaction
+	if err := json.Unmarshal([]byte(txs), &res); err != nil {
+		panic(err)
+	}
+	return res
+}
+
+func (block Block) merge(_block Block) Block {
+	if block.SeqNum != _block.SeqNum {
+		panic("merge: seqNumbers don't match")
 	}
 
-	return result
+	var mergedTxs []Transaction
+	mergedTxs = append(mergedTxs, block.Tx...)
+	mergedTxs = append(mergedTxs, _block.Tx...)
+
+	return Block{
+		SeqNum: block.SeqNum,
+		Tx:     mergedTxs,
+	}
 }
 
-func parseRange(blocks string) []Block {
-	parsedBlocks := strings.Split(blocks, "\n")
-	var createdBlocks []Block
+func addTransaction(tx Transaction) {
+	pendingTx = append(pendingTx, tx)
+	storeData("pending", Block{Tx: pendingTx}.toString())
+}
 
-	for _, block := range parsedBlocks {
-		if len(block) > 0 {
-			createdBlocks = append(createdBlocks, parseBlock(block))
+func commitBlock(block Block) {
+	BlockChainSemaphore.Acquire(context.Background(), 1)
+	currTransaction := getCurrTransactions()
+	newTransactions := make([]Transaction, 0)
+
+	for _, tx := range currTransaction {
+		shouldAdd := true
+		for _, _tx := range block.Tx {
+			if reflect.DeepEqual(tx, _tx) {
+				shouldAdd = false
+				break
+			}
+		}
+
+		if shouldAdd {
+			newTransactions = append(newTransactions, tx)
 		}
 	}
 
-	return createdBlocks
+	blockchain = append(blockchain, block)
+	storeData("blkLength", strconv.Itoa(len(blockchain)))
+	storeData(strconv.Itoa(len(blockchain)), block.toString())
+
+
+	clearCurrTransactions()
+	for _, tx := range newTransactions {
+		addTransaction(tx)
+	}
+	BlockChainSemaphore.Release(1)
 }
 
-func addBlock(sender, receiver string, amount int) {
-	blockchain = append(blockchain, Block{sender: sender, receiver: receiver, amount: amount, time: incTime()})
+func getCurrTransactions() []Transaction {
+	return pendingTx
 }
 
-func addBlockRange(blocks []Block) {
-	blockchain = append(blockchain, blocks...)
+func clearCurrTransactions() {
+	pendingTx = nil
+	storeData("pending", Block{Tx: pendingTx}.toString())
+}
+
+func clearPersistedData() {
+	blockchain = nil
+	acceptedBlock = Block{}
+	storeData("blkLength", strconv.Itoa(0))
+	storeData("accepted", acceptedBlock.toString())
+
+	reset()
+}
+
+func createNewBlock() Block {
+	return Block{
+		SeqNum: getCurrSeqNumber(),
+		Tx:     pendingTx,
+	}
+}
+
+func getLastBlock() Block {
+	if len(blockchain) == 0 {
+		return Block{SeqNum: 0, Tx: nil}
+	}
+
+	return blockchain[len(blockchain) - 1]
+}
+
+func getCurrSeqNumber() int {
+	if len(blockchain) == 0 {
+		return 1
+	}
+
+	return blockchain[len(blockchain) - 1].SeqNum + 1
 }
 
 func getBalance(user string) int {
 	balances := calculateBalances()
 
 	return balances[user] + 10
+}
+
+func getBlock(seqnum int) Block {
+	for _, block := range blockchain {
+		if block.SeqNum == seqnum {
+			return block
+		}
+	}
+	return Block{}
 }

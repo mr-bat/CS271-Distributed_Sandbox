@@ -13,12 +13,22 @@ type Client struct {
 	id int
 }
 
+var id int
+
+func setId(_id int) {
+	id = _id
+}
+
+func getId() int {
+	return id
+}
+
 func (client *Client) Receive() {
 	for {
 		message := make([]byte, 4096)
 		length, err := client.socket.Read(message)
 		if err != nil {
-			client.socket.Close()
+			_ = client.socket.Close()
 			break
 		}
 		if length > 0 {
@@ -32,5 +42,5 @@ func (client *Client) Receive() {
 
 func (client *Client) Send(message string) {
 	time.Sleep(2 * time.Second)
-	client.socket.Write([]byte(strings.TrimRight(message, "\n")))
+	_, _ = client.socket.Write([]byte(strings.TrimRight(message, "\n")))
 }

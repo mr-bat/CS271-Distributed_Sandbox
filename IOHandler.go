@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/manifoldco/promptui"
 	"github.com/sirupsen/logrus"
 	"os"
 	"strconv"
@@ -28,11 +29,24 @@ func getIdFromInput() int {
 	return id
 }
 
-func getCommand() Command {
-	reader := bufio.NewScanner(os.Stdin)
+func getInput() string{
+	prompt := promptui.Select{
+		Label: "Select one",
+		Items: []string{"Transaction", "Balance", "Print", "Reset", "Connect", "Disconnect"},
+	}
 
-	reader.Scan()
-	message := reader.Text()
+	_, result, err := prompt.Run()
+
+	if err != nil {
+		fmt.Printf("Prompt failed %v", err)
+		panic(err)
+	}
+
+	return result
+}
+
+func getCommand() Command {
+	message := getInput()
 	if message == "Transaction" {
 		var to, amount int
 		fmt.Println("Enter: to, amount")
@@ -40,8 +54,8 @@ func getCommand() Command {
 		fmt.Scan(&amount)
 
 		Logger.WithFields(logrus.Fields{
-			"from": getId(),
-			"to": to,
+			"from":   getId(),
+			"to":     to,
 			"amount": amount,
 		}).Info("received transaction command")
 		return Command{cType: TransactionCode, from: strconv.Itoa(getId()), to: strconv.Itoa(to), amount: amount}
@@ -54,13 +68,15 @@ func getCommand() Command {
 			"id": id,
 		}).Info("received balance command")
 		return Command{cType: BalanceCode, id: id}
-	} else if message == "Inform" {
-		var id int
-		fmt.Println("Enter: id")
-		fmt.Scan(&id)
-		return Command{cType:InformCode, id: id}
+	} else if message == "Print" {
+		return Command{cType: PrintCode}
+	} else if message == "Reset" {
+		return Command{cType: ResetDataCode}
+	} else if message == "Connect" {
+		return Command{cType: ConnectCode}
+	} else if message == "Disconnect" {
+		return Command{cType: DisconnectCode}
 	} else {
-		fmt.Println("Available options:\n * Transaction\n * Balance\n * Inform")
 		return Command{cType: UnknownCode}
 	}
 }
