@@ -42,7 +42,7 @@ func (client *Client) Receive() {
 }
 
 func (client *Client) Send(message string) {
-	time.Sleep(1 * time.Millisecond)
+	time.Sleep(300 * time.Microsecond)
 	_, err := client.socket.Write([]byte(strings.TrimRight(message, "\n")))
 	if err != nil {
 		fmt.Print(err)

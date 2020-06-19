@@ -88,7 +88,6 @@ func handleAck(message []string) {
 	Epaxos.Acquire(context.Background(), 1)
 	ackCnt[blk.SeqNum]++
 	_ackCnt := ackCnt[blk.SeqNum]
-	Epaxos.Release(1)
 
 	if _, ok := partialBlk[blk.SeqNum]; ok {
 		initialLen := len(partialBlk[blk.SeqNum].Deps)
@@ -98,6 +97,7 @@ func handleAck(message []string) {
 		}
 	}
 	partialBlk[blk.SeqNum] = blk
+	Epaxos.Release(1)
 
 	if _ackCnt == getQuorumSize() {
 		if needsSlowPath[blk.SeqNum] {
