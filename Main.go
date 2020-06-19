@@ -18,6 +18,7 @@ const (
 	ConnectCode		= iota
 	DisconnectCode  = iota
 	PrintCode		= iota
+	BenchmarkCode = iota
 )
 
 type Command struct {
@@ -26,6 +27,7 @@ type Command struct {
 	amount, id int
 }
 
+var yield = make(chan bool)
 var Connected = true
 func handleCommand(command Command) {
 	if command.cType == ConnectCode {
@@ -44,14 +46,14 @@ func handleCommand(command Command) {
 	} else if command.cType == PrintCode {
 		fmt.Println("Printing blockchain")
 		for i, block := range blockchain {
-			fmt.Printf("Blk %v: %v\n", i + 1, block)
+			fmt.Printf("Blk %v: %v\n", i+1, block)
 		}
-		fmt.Printf("Accepted blk: %v\n", acceptedBlock)
-		fmt.Printf("Pending Txs: %v\n", pendingTx)
 	} else if command.cType == ResetDataCode {
 		//clearCurrTransactions()
-		clearPersistedData()
-	}  else if command.cType == DisconnectCode {
+	} else if command.cType == BenchmarkCode {
+		beginBenchmark()
+		//<- yield
+	} else if command.cType == DisconnectCode {
 		Connected = false
 	} else {
 		fmt.Println("Unknown Command")
@@ -75,14 +77,13 @@ func main() {
 	}()
 
 	rand.Seed(time.Now().UTC().UnixNano())
-	PortNumber = 7180 + rand.Intn(100)
+	PortNumber = 7180 + rand.Intn(500)
 	startServer(PortNumber)
 
 	addrs := getClientAddrs()
 	connectToClients(addrs)
 	advertiseId()
 	initBlockChain()
-	lastBallot = Ballot{0, getId()}
 
 	for {
 		fmt.Println("Please enter your command: ")

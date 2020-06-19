@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"github.com/sirupsen/logrus"
+	"strings"
 )
 
 type ClientManager struct {
@@ -30,7 +31,7 @@ func (manager *ClientManager) Start() {
 
 func (manager *ClientManager) Receive(client *Client) {
 	for {
-		message := make([]byte, 4096)
+		message := make([]byte, 8096000)
 		length, err := client.socket.Read(message)
 		if err != nil {
 			Logger.WithFields(logrus.Fields{
@@ -44,11 +45,17 @@ func (manager *ClientManager) Receive(client *Client) {
 		}
 		if length > 0 {
 			message = bytes.Trim(message, "\x00")
+			msg := string(message)
 			//Logger.WithFields(logrus.Fields{  //NOTE: is very useful!
-			//	"data" : string(message),
+			//	"data" : msg,
 			//	//"client" : getAddress(),
 			//}).Info("received data")
-			handleReceivedMessage(string(message))
+			parsed := strings.Split(msg, "#")
+			for _, receivedMsg := range parsed {
+				if len(receivedMsg) > 0 {
+					handleReceivedMessage(receivedMsg)
+				}
+			}
 			//manager.mainChannel <- message
 		}
 	}

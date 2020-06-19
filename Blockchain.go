@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/looplab/tarjan"
 	"golang.org/x/sync/semaphore"
-	"reflect"
-	"strconv"
 )
 
 type Transaction struct {
@@ -15,47 +15,72 @@ type Transaction struct {
 
 type Block struct {
 	SeqNum int
+	Deps   []int
 	Tx     []Transaction
 }
 
+const (
+	BlkUnknown    = iota
+	BlkReceived   = iota
+	BlkUnexecuted = iota
+	BlkCommitted  = iota
+)
+
 var clock int
+var seqNum int
+var seenBlks map[int]int
+var depCnt map[int]int
+var dependants map[int][]int
+var readyToExecute []int
 var BlockChainSemaphore *semaphore.Weighted
+var Epaxos *semaphore.Weighted
 var blockchain []Block
-var pendingTx []Transaction
-var acceptedBlock Block
+var unexecutedBlocks []Block
 
 func initBlockChain() {
-	clock = 0
+	clock = -1
+	seqNum = -1
+	seenBlks = make(map[int]int)
+	depCnt = make(map[int]int)
+	dependants = make(map[int][]int)
+	readyToExecute = make([]int, 0)
 	BlockChainSemaphore = semaphore.NewWeighted(int64(1))
-
-	if getData("initialized") == "YES" {
-		blkLength, _ := strconv.Atoi(getData("blkLength"))
-		for i := 1; i <= blkLength; i++ {
-			blockchain = append(blockchain, parseBlock(getData(strconv.Itoa(i))))
-		}
-		acceptedBlock = parseBlock(getData("accepted"))
-		pendingTx = parseBlock(getData("pending")).Tx
-	}
-	storeData("initialized", "YES")
+	Epaxos = semaphore.NewWeighted(int64(1))
 }
 
 func incClock() int {
 	clock++
-	return clock
+	return clock * (GetNumberOfClients() + 1) + getId()
+}
+
+func incSeqNum() int {
+	seqNum++
+	return seqNum * (GetNumberOfClients() + 1) + getId()
+}
+
+func contains(s []int, e int) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+func unique(intSlice []int) []int {
+	keys := make(map[int]bool)
+	list := []int{}
+	for _, entry := range intSlice {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
 }
 
 func calculateBalances() map[string]int {
 	balance := make(map[string]int)
-
-	for _, tx := range pendingTx {
-		balance[tx.Receiver] += tx.Amount
-		balance[tx.Sender] -= tx.Amount
-	}
-
-	for _, tx := range acceptedBlock.Tx {
-		balance[tx.Receiver] += tx.Amount
-		balance[tx.Sender] -= tx.Amount
-	}
 
 	for _, currblockchain := range blockchain {
 		for _, tx := range currblockchain.Tx {
@@ -65,6 +90,38 @@ func calculateBalances() map[string]int {
 	}
 
 	return balance
+}
+
+func hasConflict(txs []Transaction, participant string) bool {
+	for _, transaction := range txs {
+		if transaction.Receiver == participant || transaction.Sender == participant {
+			return true
+		}
+	}
+
+	return false
+}
+
+func calculateDependencies(txs []Transaction) []int {
+	deps := make([]int, 0)
+
+	for _, tx := range txs {
+		for i := len(unexecutedBlocks) - 1; i > -1; i-- {
+			if hasConflict(unexecutedBlocks[i].Tx, tx.Sender) {
+				deps = append(deps, unexecutedBlocks[i].SeqNum)
+				break
+			}
+		}
+
+		for i := len(unexecutedBlocks) - 1; i > -1; i-- {
+			if hasConflict(unexecutedBlocks[i].Tx, tx.Receiver) {
+				deps = append(deps, unexecutedBlocks[i].SeqNum)
+				break
+			}
+		}
+	}
+
+	return unique(deps)
 }
 
 func (tx *Transaction) toString() string {
@@ -110,96 +167,113 @@ func parseRange(txs string) []Transaction {
 	return res
 }
 
-func (block Block) merge(_block Block) Block {
-	if block.SeqNum != _block.SeqNum {
-		panic("merge: seqNumbers don't match")
+func fillDependants(block Block) {
+	deps := 0
+	for _, dep := range block.Deps {
+		if seenBlks[dep] != BlkCommitted {
+			deps++
+			dependants[dep] = append(dependants[dep], block.SeqNum)
+		}
 	}
-
-	var mergedTxs []Transaction
-	mergedTxs = append(mergedTxs, block.Tx...)
-	mergedTxs = append(mergedTxs, _block.Tx...)
-
-	return Block{
-		SeqNum: block.SeqNum,
-		Tx:     mergedTxs,
-	}
+	depCnt[block.SeqNum] = deps
 }
 
-func addTransaction(tx Transaction) {
-	pendingTx = append(pendingTx, tx)
-	storeData("pending", Block{Tx: pendingTx}.toString())
+func tryExecuteTarjan() {
+	graph := make(map[interface{}][]interface{})
+	for _, blk := range unexecutedBlocks {
+		adj := make([]interface{}, len(blk.Deps))
+		for i, v := range blk.Deps {
+			adj[i] = v
+		}
+		graph[blk.SeqNum] = adj
+	}
+	scc := tarjan.Connections(graph)
+
+	i := 0
+	for ; i < len(scc); i++ {
+		for _, _v := range scc[i] {
+			if v, ok := _v.(int); ok {
+				if seenBlks[v] == BlkUnknown || seenBlks[v] == BlkReceived {
+					goto removeExecuted
+				}
+			} else {
+				panic(fmt.Sprintf("%v is not integer!", _v))
+			}
+		}
+
+		for _, _v := range scc[i] {
+			if v, ok := _v.(int); ok {
+				if seenBlks[v] == BlkUnexecuted {
+					seenBlks[v] = BlkCommitted
+					blockchain = append(blockchain, getBlock(v))
+				}
+			} else {
+				panic(fmt.Sprintf("%v is not integer!", _v))
+			}
+		}
+	}
+removeExecuted:
+	newUnexecuted := make([]Block, 0)
+	for ; i < len(scc); i++ {
+		for _, _v := range scc[i] {
+			if v, ok := _v.(int); ok {
+				if seenBlks[v] != BlkUnknown && seenBlks[v] != BlkCommitted {
+					newUnexecuted = append(newUnexecuted, getBlock(v))
+				}
+			} else {
+				panic(fmt.Sprintf("%v is not integer!", _v))
+			}
+		}
+	}
+	unexecutedBlocks = newUnexecuted
+}
+
+func tryExecuteDAG() {
+	updated := false
+	newReadyToExecute := make([]int, 0)
+	for _, v := range readyToExecute {
+		if seenBlks[v] == BlkUnexecuted {
+			blockchain = append(blockchain, getBlock(v))
+			seenBlks[v] = BlkCommitted
+			for _, u := range dependants[v] {
+				depCnt[u]--
+				if depCnt[u] == 0 {
+					newReadyToExecute = append(newReadyToExecute, u)
+					updated = true
+				}
+			}
+		} else { // seenBlks[v] is never BlkCommitted here
+			newReadyToExecute = append(newReadyToExecute, v)
+		}
+	}
+
+	readyToExecute = newReadyToExecute
+	if updated {
+		tryExecuteDAG()
+	}
 }
 
 func commitBlock(block Block) {
 	BlockChainSemaphore.Acquire(context.Background(), 1)
-	currTransaction := getCurrTransactions()
-	newTransactions := make([]Transaction, 0)
-
-	for _, tx := range currTransaction {
-		shouldAdd := true
-		for _, _tx := range block.Tx {
-			if reflect.DeepEqual(tx, _tx) {
-				shouldAdd = false
-				break
-			}
-		}
-
-		if shouldAdd {
-			newTransactions = append(newTransactions, tx)
-		}
+	fillDependants(block)
+	if depCnt[block.SeqNum] == 0 {
+		readyToExecute = append(readyToExecute, block.SeqNum)
 	}
-
-	blockchain = append(blockchain, block)
-	storeData("blkLength", strconv.Itoa(len(blockchain)))
-	storeData(strconv.Itoa(len(blockchain)), block.toString())
-
-
-	clearCurrTransactions()
-	for _, tx := range newTransactions {
-		addTransaction(tx)
+	if seenBlks[block.SeqNum] == BlkUnknown {
+		unexecutedBlocks = append(unexecutedBlocks, block) // addBlock will get stuck on semaphore
 	}
+	seenBlks[block.SeqNum] = BlkUnexecuted
+	tryExecuteTarjan()
 	BlockChainSemaphore.Release(1)
 }
 
-func getCurrTransactions() []Transaction {
-	return pendingTx
-}
-
-func clearCurrTransactions() {
-	pendingTx = nil
-	storeData("pending", Block{Tx: pendingTx}.toString())
-}
-
-func clearPersistedData() {
-	blockchain = nil
-	acceptedBlock = Block{}
-	storeData("blkLength", strconv.Itoa(0))
-	storeData("accepted", acceptedBlock.toString())
-
-	reset()
-}
-
-func createNewBlock() Block {
-	return Block{
-		SeqNum: getCurrSeqNumber(),
-		Tx:     pendingTx,
+func printUnexecBlks() {
+	fmt.Print("unexecuted:{ ")
+	for i := 0; i < len(unexecutedBlocks); i++ {
+		seqNum := unexecutedBlocks[i].SeqNum
+		fmt.Printf("(%v:%v) ", seqNum, seenBlks[seqNum])
 	}
-}
-
-func getLastBlock() Block {
-	if len(blockchain) == 0 {
-		return Block{SeqNum: 0, Tx: nil}
-	}
-
-	return blockchain[len(blockchain) - 1]
-}
-
-func getCurrSeqNumber() int {
-	if len(blockchain) == 0 {
-		return 1
-	}
-
-	return blockchain[len(blockchain) - 1].SeqNum + 1
+	fmt.Print("}\n")
 }
 
 func getBalance(user string) int {
@@ -208,11 +282,51 @@ func getBalance(user string) int {
 	return balances[user] + 10
 }
 
+func createAndAddBlock(txns []Transaction) Block {
+	BlockChainSemaphore.Acquire(context.Background(), 1)
+	defer	BlockChainSemaphore.Release(1)
+
+	blk := Block{
+		SeqNum: incSeqNum(),
+		Deps:   calculateDependencies(txns),
+		Tx:     txns,
+	}
+	unexecutedBlocks = append(unexecutedBlocks, blk)
+	seenBlks[blk.SeqNum] = BlkReceived
+	//printUnexecBlks()
+
+	return blk
+}
+
+func addBlock(block Block) {
+	BlockChainSemaphore.Acquire(context.Background(), 1)
+	defer	BlockChainSemaphore.Release(1)
+
+	unexecutedBlocks = append(unexecutedBlocks, block)
+	seenBlks[block.SeqNum] = BlkReceived
+	//printUnexecBlks()
+}
+
 func getBlock(seqnum int) Block {
-	for _, block := range blockchain {
+	for _, block := range unexecutedBlocks {
 		if block.SeqNum == seqnum {
 			return block
 		}
 	}
-	return Block{}
+
+	panic(fmt.Sprintf("block %v not found getBlock", seqnum))
+}
+
+func updateBlock(block Block) {
+	BlockChainSemaphore.Acquire(context.Background(), 1)
+	defer	BlockChainSemaphore.Release(1)
+
+	for i := 0; i < len(unexecutedBlocks); i++ {
+		if unexecutedBlocks[i].SeqNum == block.SeqNum {
+			unexecutedBlocks[i] = block
+			return
+		}
+	}
+
+	panic(fmt.Sprintf("block %v not found updateBlock", block.SeqNum))
 }

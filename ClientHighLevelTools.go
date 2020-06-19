@@ -1,9 +1,8 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"github.com/adam-lavrik/go-imath/ix"
+	"math/rand"
 	"net"
 	"strconv"
 	"strings"
@@ -42,11 +41,26 @@ func connectToClients(addrs []Addr) {
 func sendToClients(message string) {
 	logMessage(message, true)
 	for _, client := range clients {
-		Logger.WithFields(logrus.Fields{
-			"clientId": client.id,
-		}).Info("sending to client")
+		//Logger.WithFields(logrus.Fields{
+		//	"clientId": client.id,
+		//}).Info("sending to client")
 
 		client.Send(message)
+	}
+}
+
+func sendToQuorum(bitMask int, message string) {
+	logMessage(message, true)
+	for i, client := range clients {
+		if bitMask & (1 << uint(i)) > 0 {
+			//Logger.WithFields(logrus.Fields{
+			//	"clientId": client.id,
+			//	"mask": bitMask & (1 << uint(i)),
+			//	//"clients": clients,
+			//}).Info("sending to client in quorum")
+
+			client.Send(message)
+		}
 	}
 }
 
@@ -55,9 +69,9 @@ func sendClient(id int, message string) {
 	logMessage(message, true)
 	for _, client := range clients {
 		if client.id == id {
-			Logger.WithFields(logrus.Fields{
-				"clientId": id,
-			}).Info("sending to client")
+			//Logger.WithFields(logrus.Fields{
+			//	"clientId": id,
+			//}).Info("sending to client")
 
 			client.Send(message)
 		}
@@ -84,6 +98,11 @@ func startClientMode(addr Addr) *Client {
 }
 
 func logMessage(msg string, sending bool) {
+	return
+	sz := len(msg)
+	if msg[sz - 1] == '#' {
+		msg = msg[:sz-1]
+	}
 	infoText := "handling message"
 	shortInfo := "recv"
 	if sending {
@@ -93,12 +112,22 @@ func logMessage(msg string, sending bool) {
 	parsed := strings.Split(msg, "@")
 	command := parsed[0]
 	if command != "ID" {
-		Logger.WithFields(logrus.Fields{
-			"command": shortInfo + ":" + parsed[0],
-			"message": parseMessage(parsed[1]),
-			"lowest ack": lowestAck,
-			"last ballot":  lastBallot,
-		}).Info(infoText)
+		if len(parsed) == 3 {
+			Logger.WithFields(logrus.Fields{
+				"command": shortInfo + ":" + parsed[0],
+				"block":   parseBlock(parsed[1]),
+				"ballot":  parseBallot(parsed[2]),
+			}).Info(infoText)
+		} else if len(parsed) == 2 {
+			Logger.WithFields(logrus.Fields{
+				"command": shortInfo + ":" + parsed[0],
+				"block":   parseBlock(parsed[1]),
+			}).Info(infoText)
+		} else {
+			Logger.WithFields(logrus.Fields{
+				"command": shortInfo + ":" + parsed[0],
+			}).Info(infoText)
+		}
 	}
 }
 
@@ -115,60 +144,30 @@ func handleReceivedMessage(message string) {
 		fmt.Println(parsed)
 		id, _ := strconv.Atoi(parsed[1])
 		addClientId(id, parsed[2])
-	} else if command == "PREPARE" {
-		prepareMessage := parseMessage(parsed[1])
-		receivedBallot := prepareMessage.Ballot
-		block := getBlock(prepareMessage.Block.SeqNum + 1)
-		if !block.isEmpty() {
-			commitMsg := getCommitMessage(block)
-			sendClient(receivedBallot.ProcessId, commitMsg)
-		} else if isGreaterBallot(receivedBallot) {
-			lastBallot = receivedBallot
-			sendClient(receivedBallot.ProcessId, getAckMessage(receivedBallot))
-		}
-		latestBallotNumber = ix.Max(latestBallotNumber, prepareMessage.Ballot.Num)
-	} else if command == "ACK" {
-		ackMessage := parseMessage(parsed[1])
-		if ackMessage.Ballot == lastBallot {
-			if ackMessage.Accepted {
-				acceptedBlock = ackMessage.Block
-				storeData("accepted", acceptedBlock.toString())
-				lowestAck = ix.Min(lowestAck, ackMessage.Block.SeqNum - 1)
-			} else {
-				receivedTransactions = append(receivedTransactions, ackMessage.Block.Tx...)
-				lowestAck = ix.Min(lowestAck, ackMessage.Block.SeqNum)
+	} else if command == PREPARE {
+		handlePrepare(parsed)
+	} else if command == ACK {
+		handleAck(parsed)
+	} else if command == ACCEPT {
+		panic("not possible for this test")
+		//handleAccept(parsed)
+	} else if command == ACCEPTED {
+		panic("not possible for this test")
+		//handleAccepted(parsed)
+	} else if command == COMMIT {
+		handleCommit(parsed)
+	} else if command == BENCHMARK {
+		go func() {
+			fmt.Printf("Begin benchmark at %v\n", time.Now().UnixNano())
+			for i := 0; i < BENCHMARK_CNT; i++ {
+				receipient := rand.Int() % GetNumberOfClients() + 1
+				if receipient == getId() {
+					receipient++
+				}
+
+				addPurchase(strconv.Itoa(getId()), strconv.Itoa(receipient), 100)
 			}
-			ackCount++
-		}
-		latestBallotNumber = ix.Max(latestBallotNumber, ackMessage.Ballot.Num)
-	} else if command == "ACCEPT" {
-		acceptMessage := parseMessage(parsed[1])
-		if acceptMessage.Ballot == lastBallot {
-			acceptedBlock = acceptMessage.Block
-			storeData("accepted", acceptedBlock.toString())
-			sendClient(acceptMessage.Ballot.ProcessId, getAcceptedMessage(acceptMessage.Ballot))
-		}
-		latestBallotNumber = ix.Max(latestBallotNumber, acceptMessage.Ballot.Num)
-	} else if command == "ACCEPTED" {
-		acceptedMessage := parseMessage(parsed[1])
-		if acceptedMessage.Ballot == lastBallot {
-			acceptedCount++
-		}
-		latestBallotNumber = ix.Max(latestBallotNumber, acceptedMessage.Ballot.Num)
-	} else if command == "COMMIT" {
-		commitMessage := parseMessage(parsed[1])
-		fmt.Printf("commiting: newBlk? %v acceptedBlk %v\n", getBlock(commitMessage.Block.SeqNum).isEmpty(), acceptedBlock)
-		if getBlock(commitMessage.Block.SeqNum).isEmpty() {
-			if commitMessage.Block.SeqNum >= acceptedBlock.SeqNum {
-				fmt.Println("accepted Blk reset")
-				acceptedBlock = Block{}
-				storeData("accepted", acceptedBlock.toString())
-			}
-			if commitMessage.Block.SeqNum == 1 || !getBlock(commitMessage.Block.SeqNum - 1).isEmpty() {
-				commitBlock(commitMessage.Block)
-			}
-		}
-		latestBallotNumber = ix.Max(latestBallotNumber, commitMessage.Ballot.Num)
+		}()
 	}
 }
 
@@ -190,40 +189,13 @@ func addClientId(id int, address string) {
 }
 
 func addPurchase(from, to string, amount int) {
-	Logger.WithFields(logrus.Fields{
-		"from":                   from,
-		"from's-initial-balance": getBalance(from),
-		"to":                     to,
-		"amount":                 amount,
-	}).Info("current transaction")
-
-	Logger.WithFields(logrus.Fields{
-		"pending":                 pendingTx,
-	}).Info("before sync")
-	if getBalance(from) < amount {
-		beginSync()
+	txn := Transaction{
+		Sender:   from,
+		Receiver: to,
+		Amount:   amount,
+		Id: incClock(),
 	}
-	Logger.WithFields(logrus.Fields{
-		"pending":                 pendingTx,
-	}).Info("after sync")
-
-	if getBalance(from) < amount {
-		fmt.Println("INCORRECT")
-	} else {
-		BlockChainSemaphore.Acquire(context.Background(), 1)
-		addTransaction(Transaction{
-			Sender:   from,
-			Receiver: to,
-			Amount:   amount,
-			Id:       incClock(),
-		})
-		fmt.Println("SUCCESS")
-		BlockChainSemaphore.Release(1)
-	}
-
-	Logger.WithFields(logrus.Fields{
-		"pending":                 pendingTx,
-	}).Info("after add")
+	handleNewTransaction(txn)
 }
 
 func advertiseId() {

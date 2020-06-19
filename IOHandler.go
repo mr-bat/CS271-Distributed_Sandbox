@@ -20,7 +20,7 @@ func waitForDone() {
 }
 
 func getIdFromInput() int {
-	fmt.Println("What is your id?")
+	fmt.Println("What is your id? (one base)")
 	reader := bufio.NewScanner(os.Stdin)
 	reader.Scan()
 	message := reader.Text()
@@ -30,9 +30,10 @@ func getIdFromInput() int {
 }
 
 func getInput() string{
+	fmt.Printf("number of participants: %v\n\n\n\n\n", GetNumberOfClients() + 1)
 	prompt := promptui.Select{
 		Label: "Select one",
-		Items: []string{"Transaction", "Balance", "Print", "Reset", "Connect", "Disconnect"},
+		Items: []string{"Benchmark", "Transaction", "Balance", "Print", "Reset", "Connect", "Disconnect"},
 	}
 
 	_, result, err := prompt.Run()
@@ -68,6 +69,8 @@ func getCommand() Command {
 			"id": id,
 		}).Info("received balance command")
 		return Command{cType: BalanceCode, id: id}
+	} else if message == "Benchmark" {
+		return Command{cType: BenchmarkCode}
 	} else if message == "Print" {
 		return Command{cType: PrintCode}
 	} else if message == "Reset" {
