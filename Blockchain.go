@@ -106,6 +106,9 @@ func calculateDependencies(txs []Transaction) []int {
 	deps := make([]int, 0)
 
 	for _, tx := range txs {
+		if tx.Sender == "0" {
+			continue
+		}
 		for i := len(unexecutedBlocks) - 1; i > -1; i-- {
 			if hasConflict(unexecutedBlocks[i].Tx, tx.Sender) {
 				deps = append(deps, unexecutedBlocks[i].SeqNum)
@@ -113,12 +116,12 @@ func calculateDependencies(txs []Transaction) []int {
 			}
 		}
 
-		for i := len(unexecutedBlocks) - 1; i > -1; i-- {
-			if hasConflict(unexecutedBlocks[i].Tx, tx.Receiver) {
-				deps = append(deps, unexecutedBlocks[i].SeqNum)
-				break
-			}
-		}
+		//for i := len(unexecutedBlocks) - 1; i > -1; i-- {
+		//	if hasConflict(unexecutedBlocks[i].Tx, tx.Receiver) {
+		//		deps = append(deps, unexecutedBlocks[i].SeqNum)
+		//		break
+		//	}
+		//}
 	}
 
 	return unique(deps)
@@ -178,6 +181,7 @@ func fillDependants(block Block) {
 	depCnt[block.SeqNum] = deps
 }
 
+var nonTrivialComponents int
 func tryExecuteTarjan() {
 	graph := make(map[interface{}][]interface{})
 	for _, blk := range unexecutedBlocks {
@@ -201,11 +205,17 @@ func tryExecuteTarjan() {
 			}
 		}
 
+		if len(scc[i]) > 1 {
+			//println(len(scc[i]))
+			nonTrivialComponents++
+		}
 		for _, _v := range scc[i] {
 			if v, ok := _v.(int); ok {
 				if seenBlks[v] == BlkUnexecuted {
 					seenBlks[v] = BlkCommitted
-					blockchain = append(blockchain, getBlock(v))
+					blk := getBlock(v)
+					blockchain = append(blockchain, blk)
+					//printBlock(blk)
 				}
 			} else {
 				panic(fmt.Sprintf("%v is not integer!", _v))
@@ -274,6 +284,10 @@ func printUnexecBlks() {
 		fmt.Printf("(%v:%v) ", seqNum, seenBlks[seqNum])
 	}
 	fmt.Print("}\n")
+}
+
+func printBlock(block Block) {
+	fmt.Printf("executed %v with deps: %v\n", block.SeqNum, block.Deps)
 }
 
 func getBalance(user string) int {

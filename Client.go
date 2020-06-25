@@ -5,7 +5,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"net"
 	"strings"
-	"time"
+	//"time"
 )
 
 type Client struct {
@@ -42,7 +42,7 @@ func (client *Client) Receive() {
 }
 
 func (client *Client) Send(message string) {
-	time.Sleep(300 * time.Microsecond)
+	//time.Sleep(300 * time.Microsecond) // Simulating delays
 	_, err := client.socket.Write([]byte(strings.TrimRight(message, "\n")))
 	if err != nil {
 		fmt.Print(err)

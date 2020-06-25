@@ -9,13 +9,14 @@ import (
 )
 
 const (
-	PREPARE = "PREPARE"
-	ACK = "ACK"
-	ACCEPT = "ACCEPT"
-	ACCEPTED = "ACCEPTED"
-	COMMIT = "COMMIT"
-	BENCHMARK = "BENCHMARK"
-	BENCHMARK_CNT = 300
+	PREPARE       = "PREPARE"
+	ACK           = "ACK"
+	ACCEPT        = "ACCEPT"
+	ACCEPTED      = "ACCEPTED"
+	COMMIT        = "COMMIT"
+	BENCHMARK     = "BENCHMARK"
+	BenchmarkCnt  = 300
+	ConflictRatio = 2
 )
 
 type Ballot struct {
@@ -26,11 +27,16 @@ type Ballot struct {
 var partialBlk map[int]Block
 var needsSlowPath map[int]bool
 var ackCnt map[int]int
+var conflictArr []int
 
 func init() {
 	partialBlk = make(map[int]Block, 0)
 	needsSlowPath = make(map[int]bool, 0)
 	ackCnt = make(map[int]int, 0)
+	conflictArr = make([]int, 0, BenchmarkCnt)
+	for i := 0; i < BenchmarkCnt; i++ {
+		conflictArr = append(conflictArr, rand.Int()%100)
+	}
 }
 
 func (ballot *Ballot) toString() string {
@@ -143,8 +149,16 @@ func handleCommit(message []string) {
 	commitCnt++
 	//fmt.Printf("commited %v blocks with %v unexecuted blocks\n", commitCnt, len(unexecutedBlocks))
 
-	if commitCnt >= BENCHMARK_CNT * (GetNumberOfClients() + 1) - 3 { // 3 is error window
-		fmt.Printf("Handled %v commit messages in %v with %v unexecuted blocks\n", commitCnt, time.Now().UnixNano(), len(unexecutedBlocks))
+	if commitCnt >= BenchmarkCnt* (GetNumberOfClients() + 1) {
+		fmt.Printf("Handled %v commit messages in %vms with %v unexecuted blocks with %v non-trivial components\n",
+			commitCnt,
+			(time.Now().UnixNano() - benchmarkBeganAt) / 1e6,
+			len(unexecutedBlocks),
+			nonTrivialComponents,
+		)
+		if commitCnt > BenchmarkCnt* (GetNumberOfClients() + 1) {
+			panic("WTH?!")
+		}
 	}
 }
 

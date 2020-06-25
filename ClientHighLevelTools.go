@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"net"
 	"strconv"
 	"strings"
@@ -131,6 +130,7 @@ func logMessage(msg string, sending bool) {
 	}
 }
 
+var benchmarkBeganAt int64
 func handleReceivedMessage(message string) {
 	if !Connected {
 		return
@@ -158,14 +158,13 @@ func handleReceivedMessage(message string) {
 		handleCommit(parsed)
 	} else if command == BENCHMARK {
 		go func() {
-			fmt.Printf("Begin benchmark at %v\n", time.Now().UnixNano())
-			for i := 0; i < BENCHMARK_CNT; i++ {
-				receipient := rand.Int() % GetNumberOfClients() + 1
-				if receipient == getId() {
-					receipient++
+			benchmarkBeganAt = time.Now().UnixNano()
+			for i := 0; i < BenchmarkCnt; i++ {
+				if conflictArr[i] < ConflictRatio {
+					addPurchase("1", "1", 100)
+				} else {
+					addPurchase("0", "0", 100)
 				}
-
-				addPurchase(strconv.Itoa(getId()), strconv.Itoa(receipient), 100)
 			}
 		}()
 	}
