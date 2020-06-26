@@ -273,7 +273,7 @@ func commitBlock(block Block) {
 		unexecutedBlocks = append(unexecutedBlocks, block) // addBlock will get stuck on semaphore
 	}
 	seenBlks[block.SeqNum] = BlkUnexecuted
-	tryExecuteTarjan()
+	//tryExecuteTarjan()
 	BlockChainSemaphore.Release(1)
 }
 
