@@ -159,9 +159,18 @@ func handleReceivedMessage(message string) {
 	} else if command == BENCHMARK {
 		go func() {
 			benchmarkBeganAt = time.Now().UnixNano()
+			conflictingSender := 1
+			conflictsSent := 0
 			for i := 0; i < BenchmarkCnt; i++ {
 				if conflictArr[i] < ConflictRatio {
-					addPurchase("1", "1", 100)
+					if conflictsSent == 2 {
+						conflictsSent = 0
+						conflictingSender++
+					} else {
+						conflictsSent++
+					}
+					sender := conflictingSender * (GetNumberOfClients() + 1) + getId()
+					addPurchase(strconv.Itoa(sender), strconv.Itoa(sender), 100)
 				} else {
 					addPurchase("0", "0", 100)
 				}
