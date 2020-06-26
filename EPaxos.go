@@ -15,7 +15,7 @@ const (
 	ACCEPTED      = "ACCEPTED"
 	COMMIT        = "COMMIT"
 	BENCHMARK     = "BENCHMARK"
-	BenchmarkCnt  = 300
+	BenchmarkCnt  = 1000
 	ConflictRatio = 2
 )
 
@@ -147,9 +147,18 @@ func handleCommit(message []string) {
 
 	commitBlock(blk)
 	commitCnt++
+	/*
+	if commitCnt >= 2995 == 0 {
+		BlockChainSemaphore.Acquire(context.Background(), 1)
+		tryExecuteTarjan()
+		BlockChainSemaphore.Release(1)
+	} */
 	//fmt.Printf("commited %v blocks with %v unexecuted blocks\n", commitCnt, len(unexecutedBlocks))
 
 	if commitCnt >= BenchmarkCnt* (GetNumberOfClients() + 1) {
+		BlockChainSemaphore.Acquire(context.Background(), 1)
+		tryExecuteTarjan()
+		BlockChainSemaphore.Release(1)
 		fmt.Printf("Handled %v commit messages in %vms with %v unexecuted blocks with %v non-trivial components\n",
 			commitCnt,
 			(time.Now().UnixNano() - benchmarkBeganAt) / 1e6,

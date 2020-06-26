@@ -31,7 +31,7 @@ func (manager *ClientManager) Start() {
 
 func (manager *ClientManager) Receive(client *Client) {
 	for {
-		message := make([]byte, 8096000)
+		message := make([]byte, 809600)
 		length, err := client.socket.Read(message)
 		if err != nil {
 			Logger.WithFields(logrus.Fields{
