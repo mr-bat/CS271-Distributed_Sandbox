@@ -97,35 +97,36 @@ func startClientMode(addr Addr) *Client {
 }
 
 func logMessage(msg string, sending bool) {
-	return
-	sz := len(msg)
-	if msg[sz - 1] == '#' {
-		msg = msg[:sz-1]
-	}
-	infoText := "handling message"
-	shortInfo := "recv"
-	if sending {
-		infoText = "sending message"
-		shortInfo = "send"
-	}
-	parsed := strings.Split(msg, "@")
-	command := parsed[0]
-	if command != "ID" {
-		if len(parsed) == 3 {
-			Logger.WithFields(logrus.Fields{
-				"command": shortInfo + ":" + parsed[0],
-				"block":   parseBlock(parsed[1]),
-				"ballot":  parseBallot(parsed[2]),
-			}).Info(infoText)
-		} else if len(parsed) == 2 {
-			Logger.WithFields(logrus.Fields{
-				"command": shortInfo + ":" + parsed[0],
-				"block":   parseBlock(parsed[1]),
-			}).Info(infoText)
-		} else {
-			Logger.WithFields(logrus.Fields{
-				"command": shortInfo + ":" + parsed[0],
-			}).Info(infoText)
+	if Debugging {
+		sz := len(msg)
+		if msg[sz - 1] == '#' {
+			msg = msg[:sz-1]
+		}
+		infoText := "handling message"
+		shortInfo := "recv"
+		if sending {
+			infoText = "sending message"
+			shortInfo = "send"
+		}
+		parsed := strings.Split(msg, "@")
+		command := parsed[0]
+		if command != "ID" {
+			if len(parsed) == 3 {
+				Logger.WithFields(logrus.Fields{
+					"command": shortInfo + ":" + parsed[0],
+					"block":   parseBlock(parsed[1]),
+					"ballot":  parseBallot(parsed[2]),
+				}).Info(infoText)
+			} else if len(parsed) == 2 {
+				Logger.WithFields(logrus.Fields{
+					"command": shortInfo + ":" + parsed[0],
+					"block":   parseBlock(parsed[1]),
+				}).Info(infoText)
+			} else {
+				Logger.WithFields(logrus.Fields{
+					"command": shortInfo + ":" + parsed[0],
+				}).Info(infoText)
+			}
 		}
 	}
 }
@@ -149,19 +150,28 @@ func handleReceivedMessage(message string) {
 	} else if command == ACK {
 		handleAck(parsed)
 	} else if command == ACCEPT {
-		panic("not possible for this test")
-		//handleAccept(parsed)
+		//panic("not possible for this test")
+		handleAccept(parsed)
 	} else if command == ACCEPTED {
-		panic("not possible for this test")
-		//handleAccepted(parsed)
+		//panic("not possible for this test")
+		handleAccepted(parsed)
 	} else if command == COMMIT {
 		handleCommit(parsed)
 	} else if command == BENCHMARK {
 		go func() {
 			benchmarkBeganAt = time.Now().UnixNano()
+			conflictingSender := 1
+			conflictsSent := 0
 			for i := 0; i < BenchmarkCnt; i++ {
 				if conflictArr[i] < ConflictRatio {
-					addPurchase("1", "1", 100)
+					if conflictsSent == 2 {
+						conflictsSent = 0
+						conflictingSender++
+					} else {
+						conflictsSent++
+					}
+					sender := conflictingSender * (GetNumberOfClients() + 1) + getId()
+					addPurchase(strconv.Itoa(sender), strconv.Itoa(sender), 100)
 				} else {
 					addPurchase("0", "0", 100)
 				}

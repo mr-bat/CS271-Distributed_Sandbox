@@ -15,13 +15,16 @@ type Transaction struct {
 
 type Block struct {
 	SeqNum int
-	Deps   []int
+	CerDeps   []int
+	PotDeps   []int
+	ToBeDel   []int
 	Tx     []Transaction
 }
 
 const (
 	BlkUnknown    = iota
 	BlkReceived   = iota
+	BlkConfirmed  = iota
 	BlkUnexecuted = iota
 	BlkCommitted  = iota
 )
@@ -34,6 +37,7 @@ var dependants map[int][]int
 var readyToExecute []int
 var BlockChainSemaphore *semaphore.Weighted
 var Epaxos *semaphore.Weighted
+var Epaxos2 *semaphore.Weighted
 var blockchain []Block
 var unexecutedBlocks []Block
 
@@ -46,6 +50,7 @@ func initBlockChain() {
 	readyToExecute = make([]int, 0)
 	BlockChainSemaphore = semaphore.NewWeighted(int64(1))
 	Epaxos = semaphore.NewWeighted(int64(1))
+	Epaxos2 = semaphore.NewWeighted(int64(1))
 }
 
 func incClock() int {
@@ -102,29 +107,38 @@ func hasConflict(txs []Transaction, participant string) bool {
 	return false
 }
 
-func calculateDependencies(txs []Transaction) []int {
-	deps := make([]int, 0)
-
-	for _, tx := range txs {
+func calculateDependencies(block Block) Block {
+	BlockChainSemaphore.Acquire(context.Background(), 1)
+	for _, tx := range block.Tx {
 		if tx.Sender == "0" {
 			continue
 		}
 		for i := len(unexecutedBlocks) - 1; i > -1; i-- {
 			if hasConflict(unexecutedBlocks[i].Tx, tx.Sender) {
-				deps = append(deps, unexecutedBlocks[i].SeqNum)
-				break
+				if unexecutedBlocks[i].SeqNum < block.SeqNum {
+					block.CerDeps = append(block.CerDeps, unexecutedBlocks[i].SeqNum)
+					//break
+				} else if !contains(unexecutedBlocks[i].CerDeps, block.SeqNum) {
+					block.CerDeps = append(block.CerDeps, unexecutedBlocks[i].SeqNum)
+				}
 			}
 		}
 
 		//for i := len(unexecutedBlocks) - 1; i > -1; i-- {
 		//	if hasConflict(unexecutedBlocks[i].Tx, tx.Receiver) {
-		//		deps = append(deps, unexecutedBlocks[i].SeqNum)
-		//		break
+		//		if unexecutedBlocks[i].SeqNum < block.SeqNum {
+		//			block.CerDeps = append(block.CerDeps, unexecutedBlocks[i].SeqNum)
+		//			break
+		//		} else if !contains(unexecutedBlocks[i].CerDeps, block.SeqNum) {
+		//			block.CerDeps = append(block.CerDeps, unexecutedBlocks[i].SeqNum)
+		//		}
 		//	}
 		//}
 	}
+	BlockChainSemaphore.Release(1)
 
-	return unique(deps)
+	block.CerDeps = unique(block.CerDeps)
+	return block
 }
 
 func (tx *Transaction) toString() string {
@@ -172,8 +186,9 @@ func parseRange(txs string) []Transaction {
 
 func fillDependants(block Block) {
 	deps := 0
-	for _, dep := range block.Deps {
+	for _, dep := range block.CerDeps {
 		if seenBlks[dep] != BlkCommitted {
+			//fmt.Printf("%v depending on %v\n", block.SeqNum, dep)
 			deps++
 			dependants[dep] = append(dependants[dep], block.SeqNum)
 		}
@@ -181,12 +196,23 @@ func fillDependants(block Block) {
 	depCnt[block.SeqNum] = deps
 }
 
+func removeExecuteds() {
+	newUnexecuteds := make([]Block, 0)
+	for _, block := range unexecutedBlocks {
+		if seenBlks[block.SeqNum] != BlkCommitted {
+			newUnexecuteds = append(newUnexecuteds, block)
+		}
+	}
+
+	unexecutedBlocks = newUnexecuteds
+}
+
 var nonTrivialComponents int
 func tryExecuteTarjan() {
 	graph := make(map[interface{}][]interface{})
 	for _, blk := range unexecutedBlocks {
-		adj := make([]interface{}, len(blk.Deps))
-		for i, v := range blk.Deps {
+		adj := make([]interface{}, len(blk.CerDeps))
+		for i, v := range blk.CerDeps {
 			adj[i] = v
 		}
 		graph[blk.SeqNum] = adj
@@ -238,7 +264,15 @@ removeExecuted:
 	unexecutedBlocks = newUnexecuted
 }
 
-func tryExecuteDAG() {
+func tryExecuteDAG(isNested bool) {
+	if Debugging {
+		fmt.Printf("Beginning execution, readyToExecute: %v\nunexecutedBlocks: %v\nblockChain: %v\n",
+			readyToExecute,
+			unexecutedBlocks,
+			blockchain,
+		)
+	}
+	executedAny := false
 	updated := false
 	newReadyToExecute := make([]int, 0)
 	for _, v := range readyToExecute {
@@ -252,6 +286,10 @@ func tryExecuteDAG() {
 					updated = true
 				}
 			}
+			executedAny = true
+			if Debugging {
+				fmt.Printf("executed %v\n", v)
+			}
 		} else { // seenBlks[v] is never BlkCommitted here
 			newReadyToExecute = append(newReadyToExecute, v)
 		}
@@ -259,7 +297,10 @@ func tryExecuteDAG() {
 
 	readyToExecute = newReadyToExecute
 	if updated {
-		tryExecuteDAG()
+		tryExecuteDAG(true)
+	}
+	if executedAny && !isNested {
+		removeExecuteds()
 	}
 }
 
@@ -273,7 +314,11 @@ func commitBlock(block Block) {
 		unexecutedBlocks = append(unexecutedBlocks, block) // addBlock will get stuck on semaphore
 	}
 	seenBlks[block.SeqNum] = BlkUnexecuted
-	tryExecuteTarjan()
+	if Debugging {
+		printBlock(block)
+	}
+	//tryExecuteTarjan()
+	tryExecuteDAG(false)
 	BlockChainSemaphore.Release(1)
 }
 
@@ -287,7 +332,14 @@ func printUnexecBlks() {
 }
 
 func printBlock(block Block) {
-	fmt.Printf("executed %v with deps: %v\n", block.SeqNum, block.Deps)
+	fmt.Printf("committed %v with deps: %v and block is %v\nbtw, seenBlk: %v, depCnt: %v, dependants: %v\n",
+		block.SeqNum,
+		block.CerDeps,
+		block,
+		seenBlks[block.SeqNum],
+		depCnt[block.SeqNum],
+		dependants[block.SeqNum],
+	)
 }
 
 func getBalance(user string) int {
@@ -297,16 +349,18 @@ func getBalance(user string) int {
 }
 
 func createAndAddBlock(txns []Transaction) Block {
-	BlockChainSemaphore.Acquire(context.Background(), 1)
-	defer	BlockChainSemaphore.Release(1)
-
 	blk := Block{
 		SeqNum: incSeqNum(),
-		Deps:   calculateDependencies(txns),
+		CerDeps: make([]int, 0),
+		PotDeps: make([]int, 0),
+		ToBeDel: make([]int, 0),
 		Tx:     txns,
 	}
+	blk = calculateDependencies(blk)
+	BlockChainSemaphore.Acquire(context.Background(), 1)
 	unexecutedBlocks = append(unexecutedBlocks, blk)
 	seenBlks[blk.SeqNum] = BlkReceived
+	BlockChainSemaphore.Release(1)
 	//printUnexecBlks()
 
 	return blk
@@ -337,7 +391,8 @@ func updateBlock(block Block) {
 
 	for i := 0; i < len(unexecutedBlocks); i++ {
 		if unexecutedBlocks[i].SeqNum == block.SeqNum {
-			unexecutedBlocks[i] = block
+			unexecutedBlocks = append(append(unexecutedBlocks[:i], unexecutedBlocks[i+1:]...), block)
+			seenBlks[block.SeqNum] = BlkConfirmed
 			return
 		}
 	}

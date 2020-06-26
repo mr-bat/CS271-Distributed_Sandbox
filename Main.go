@@ -26,7 +26,7 @@ type Command struct {
 	from, to   string
 	amount, id int
 }
-
+const Debugging = false
 var yield = make(chan bool)
 var Connected = true
 func handleCommand(command Command) {
